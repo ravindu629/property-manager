@@ -10,7 +10,7 @@ import {
   Save,
   FileCog,
 } from 'lucide-react';
-import { Designer } from '@pdfme/ui';
+import { Designer, Viewer } from '@pdfme/ui';
 import { generate } from '@pdfme/generator';
 import { checkTemplate, type Template } from '@pdfme/common';
 import {
@@ -43,8 +43,15 @@ export function PdfmeSection() {
   );
   const designerBox = useRef<HTMLDivElement>(null);
   const designer = useRef<Designer | null>(null);
+  // Live preview: pdfme's Viewer shows the same template with the JSON values filled in.
+  const viewerBox = useRef<HTMLDivElement>(null);
+  const viewer = useRef<Viewer | null>(null);
+  const previewTimer = useRef<number | undefined>(undefined);
+  const [showValues, setShowValues] = useState(true);
 
   const [data, setData] = useState<LetterData>(SAMPLE_DATA);
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const [showBoxes, setShowBoxes] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,10 +64,13 @@ export function PdfmeSection() {
       domContainer: designerBox.current,
       template: templateRef.current,
       plugins: pdfmePlugins,
+      // Start with the side panel closed when the live preview needs the space.
+      options: { sidebarOpen: !showValues },
     });
     // Every drag, resize or text edit updates our copy of the template.
     d.onChangeTemplate((t) => {
       templateRef.current = t;
+      schedulePreview(t); // keep the live preview in step with every edit
     });
     // The designer has its own "Save" button. We store the template when it is clicked.
     d.onSaveTemplate((t) => {
@@ -73,7 +83,45 @@ export function PdfmeSection() {
       d.destroy();
       designer.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Close or open the designer's side panel when the preview is switched on or off.
+  useEffect(() => {
+    designer.current?.updateOptions({ sidebarOpen: !showValues });
+  }, [showValues]);
+
+  // Step 1b: create the Viewer (live preview with JSON values) next to the designer.
+  useEffect(() => {
+    if (tab !== 'designer' || !showValues || !viewerBox.current) return;
+    const v = new Viewer({
+      domContainer: viewerBox.current,
+      template: templateRef.current,
+      inputs: buildPdfmeInputs(templateRef.current, dataRef.current),
+      plugins: pdfmePlugins,
+    });
+    viewer.current = v;
+    return () => {
+      window.clearTimeout(previewTimer.current);
+      v.destroy();
+      viewer.current = null;
+    };
+  }, [tab, showValues]);
+
+  // When the JSON data changes, show the new values in the preview.
+  useEffect(() => {
+    viewer.current?.setInputs(buildPdfmeInputs(templateRef.current, data));
+  }, [data]);
+
+  // Update the preview shortly after the user stops dragging or typing.
+  function schedulePreview(t: Template) {
+    window.clearTimeout(previewTimer.current);
+    previewTimer.current = window.setTimeout(() => {
+      if (!viewer.current) return;
+      viewer.current.updateTemplate(t);
+      viewer.current.setInputs(buildPdfmeInputs(t, dataRef.current));
+    }, 300);
+  }
 
   // Free the old PDF from memory when a new one replaces it.
   useEffect(() => () => {
@@ -92,6 +140,7 @@ export function PdfmeSection() {
   function applyTemplate(t: Template) {
     templateRef.current = t;
     designer.current?.updateTemplate(t);
+    schedulePreview(t);
   }
 
   function handleSave() {
@@ -191,6 +240,15 @@ export function PdfmeSection() {
               Export JSON
             </ToolButton>
             <ToolButton icon={FileUp} onClick={handleImport}>Import JSON</ToolButton>
+            <label className="ml-1 flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={showValues}
+                onChange={(e) => setShowValues(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Show JSON values (live preview)
+            </label>
             {message && <span className="text-sm text-emerald-600">{message}</span>}
           </div>
           <Notice>
@@ -198,10 +256,24 @@ export function PdfmeSection() {
             X, Y, Width and Height in mm in the right-hand panel. Text uses {'{placeholders}'} such
             as {'{recipientName}'} that are filled from the JSON data.
           </Notice>
-          <div
-            ref={designerBox}
-            className="h-[calc(100vh-260px)] min-h-[640px] overflow-hidden rounded-xl border border-slate-200 bg-white"
-          />
+          <div className={showValues ? 'grid gap-4 xl:grid-cols-[3fr_2fr]' : ''}>
+            <div>
+              {showValues && <p className="mb-1 text-xs font-medium text-slate-500">Designer (edit the template)</p>}
+              <div
+                ref={designerBox}
+                className="h-[calc(100vh-260px)] min-h-[640px] overflow-hidden rounded-xl border border-slate-200 bg-white"
+              />
+            </div>
+            {showValues && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-500">Live preview with JSON values</p>
+                <div
+                  ref={viewerBox}
+                  className="h-[calc(100vh-260px)] min-h-[640px] overflow-hidden rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="mt-6 grid gap-6 lg:grid-cols-[380px_1fr]">
