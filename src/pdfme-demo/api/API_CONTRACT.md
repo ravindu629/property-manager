@@ -1,7 +1,7 @@
 # Template API contract (for the Spring Boot backend)
 
 The pdfme demo frontend already calls these endpoints when `VITE_TEMPLATE_API_URL` is set
-in `.env` (for example `VITE_TEMPLATE_API_URL=http://localhost:8080`).
+in `.env` (for example `VITE_TEMPLATE_API_URL=http://localhost:8082`).
 Without it, the frontend saves templates in the browser instead.
 
 Base path: `/api/templates`. All bodies are JSON.

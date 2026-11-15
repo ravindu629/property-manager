@@ -2,7 +2,7 @@
 //
 // The rest of the demo only talks to the `templateApi` object exported at the bottom.
 // Today it saves to the browser (localStorage). When the Spring Boot backend is ready,
-// set VITE_TEMPLATE_API_URL in .env (for example http://localhost:8080) and the same
+// set VITE_TEMPLATE_API_URL in .env (for example http://localhost:8082) and the same
 // screens will use the REST API instead. Nothing else needs to change.
 // The REST endpoints are described in ./API_CONTRACT.md.
 
