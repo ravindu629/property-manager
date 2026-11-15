@@ -84,7 +84,12 @@ export function DataJsonEditor({
         throw new Error('Data must be a JSON object, for example { "name": "value" }');
       }
       const clean: LetterData = {};
-      for (const [k, v] of Object.entries(parsed)) clean[k] = String(v);
+      for (const [k, v] of Object.entries(parsed)) {
+        if (v !== null && typeof v === 'object') {
+          throw new Error(`"${k}" must be text or a number, not an object or a list`);
+        }
+        clean[k] = v === null ? '' : String(v);
+      }
       setError(null);
       onValidChange(clean);
     } catch (e) {

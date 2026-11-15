@@ -120,7 +120,11 @@ export function PositionEditor({
 
   async function uploadImage(file: File | undefined) {
     if (!file || !selected) return;
-    update(selected.id, { content: await readFileAsDataUrl(file) });
+    const id = selected.id;
+    const content = await readFileAsDataUrl(file);
+    // Use the latest elements: they may have changed while the file was being read.
+    const { elements: els, onChange: change } = latest.current;
+    change(els.map((el) => (el.id === id ? { ...el, content } : el)));
   }
 
   const px = (mmValue: number) => mmValue * scale;
@@ -262,12 +266,11 @@ export function PositionEditor({
             <div className="grid grid-cols-2 gap-2">
               {(['x', 'y', 'width', 'height'] as const).map((key) => (
                 <Field key={key} label={`${key === 'x' || key === 'y' ? key.toUpperCase() : key[0].toUpperCase() + key.slice(1)} (mm)`}>
-                  <input
-                    type="number"
+                  <NumberField
                     step={0.1}
                     value={selected[key]}
-                    onChange={(e) => update(selected.id, { [key]: Number(e.target.value) || 0 })}
-                    className={inputCls}
+                    {...mmLimits(selected, key)}
+                    onCommit={(n) => update(selected.id, { [key]: n })}
                   />
                 </Field>
               ))}
@@ -285,10 +288,10 @@ export function PositionEditor({
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="Font size (pt)">
-                    <input type="number" step={0.5} value={selected.fontSize} onChange={(e) => update(selected.id, { fontSize: Number(e.target.value) || 1 })} className={inputCls} />
+                    <NumberField step={0.5} min={1} max={200} value={selected.fontSize} onCommit={(n) => update(selected.id, { fontSize: n })} />
                   </Field>
                   <Field label="Line height">
-                    <input type="number" step={0.1} value={selected.lineHeight} onChange={(e) => update(selected.id, { lineHeight: Number(e.target.value) || 1 })} className={inputCls} />
+                    <NumberField step={0.1} min={0.5} max={5} value={selected.lineHeight} onCommit={(n) => update(selected.id, { lineHeight: n })} />
                   </Field>
                   <Field label="Align">
                     <select value={selected.align} onChange={(e) => update(selected.id, { align: e.target.value as TextAlign })} className={inputCls}>
@@ -335,5 +338,62 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="mb-1 block text-xs font-medium text-slate-500">{label}</span>
       {children}
     </label>
+  );
+}
+
+// Limits that keep a box inside the A4 page.
+function mmLimits(el: LetterElement, key: 'x' | 'y' | 'width' | 'height') {
+  switch (key) {
+    case 'x': return { min: 0, max: A4.width - el.width };
+    case 'y': return { min: 0, max: A4.height - el.height };
+    case 'width': return { min: 1, max: A4.width - el.x };
+    case 'height': return { min: 1, max: A4.height - el.y };
+  }
+}
+
+// Number box that lets the user type freely ("", "-", "20.") without the value jumping
+// to 0. Valid numbers are kept inside min/max; the box tidies itself when it loses focus.
+function NumberField({
+  value,
+  onCommit,
+  min,
+  max,
+  step,
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+  min: number;
+  max: number;
+  step: number;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  // Show changes made elsewhere (for example dragging the box) when not typing.
+  useEffect(() => {
+    if (!focused) setDraft(String(value));
+  }, [value, focused]);
+
+  return (
+    <input
+      type="number"
+      step={step}
+      min={min}
+      max={max}
+      value={draft}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        setDraft(String(value));
+      }}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const n = parseFloat(e.target.value);
+        if (Number.isFinite(n)) {
+          onCommit(Number(Math.min(Math.max(n, min), Math.max(min, max)).toFixed(2)));
+        }
+      }}
+      className={inputCls}
+    />
   );
 }
