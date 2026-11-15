@@ -20,6 +20,7 @@ import {
   Landmark,
   LayoutTemplate,
   FileCode2,
+  Wand2,
 } from 'lucide-react';
 import { type ComponentType } from 'react';
 
@@ -42,6 +43,7 @@ export type SectionKey =
   | 'templates'
   | 'templates-pdfme'
   | 'templates-reactpdf'
+  | 'templates-pdfme-demo'
   | 'admin';
 
 interface NavItem {
@@ -82,6 +84,7 @@ const subItems: SubItem[] = [
   { key: 'finance-accounts', label: 'Accounts', icon: Landmark, parent: 'finance' },
   { key: 'templates-pdfme', label: 'pdfme', icon: LayoutTemplate, parent: 'templates' },
   { key: 'templates-reactpdf', label: 'React PDF', icon: FileCode2, parent: 'templates' },
+  { key: 'templates-pdfme-demo', label: 'pdfme demo', icon: Wand2, parent: 'templates' },
 ];
 
 export function Sidebar({
@@ -106,7 +109,10 @@ export function Sidebar({
     active === 'finance-reports' ||
     active === 'finance-accounts';
   const templatesExpanded =
-    active === 'templates' || active === 'templates-pdfme' || active === 'templates-reactpdf';
+    active === 'templates' ||
+    active === 'templates-pdfme' ||
+    active === 'templates-reactpdf' ||
+    active === 'templates-pdfme-demo';
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-200 bg-slate-900">

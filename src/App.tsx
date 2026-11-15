@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { Sidebar, type SectionKey } from '@/components/Sidebar';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MapPin } from 'lucide-react';
 import { SiteDashboard } from '@/sections/SiteDashboard';
 import { FinanceSection } from '@/sections/FinanceSection';
@@ -16,6 +17,9 @@ const PdfmeSection = lazy(() =>
 );
 const ReactPdfSection = lazy(() =>
   import('@/sections/templates/ReactPdfSection').then((m) => ({ default: m.ReactPdfSection }))
+);
+const PdfmeDemoSection = lazy(() =>
+  import('@/pdfme-demo/PdfmeDemoSection').then((m) => ({ default: m.PdfmeDemoSection }))
 );
 import { AdminSection } from '@/sections/AdminSection';
 import { SiteUnitsSection } from '@/sections/SiteUnitsSection';
@@ -77,6 +81,7 @@ function App() {
       case 'templates': return <TemplatesSection onOpen={handleSelect} />;
       case 'templates-pdfme': return <PdfmeSection />;
       case 'templates-reactpdf': return <ReactPdfSection />;
+      case 'templates-pdfme-demo': return <PdfmeDemoSection />;
       case 'admin': return <AdminSection />;
       default: return <SiteDashboard />;
     }
@@ -108,9 +113,12 @@ function App() {
       )}
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-7xl px-6 py-8">
-          <Suspense fallback={<p className="text-sm text-slate-400">Loading...</p>}>
-            {renderSection()}
-          </Suspense>
+          {/* key resets the error message when the user opens another page */}
+          <ErrorBoundary key={active}>
+            <Suspense fallback={<p className="text-sm text-slate-400">Loading...</p>}>
+              {renderSection()}
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
     </div>
