@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Download,
   FileCog,
@@ -20,6 +20,8 @@ import {
   loadFromStorage,
   pickJsonFile,
   saveToStorage,
+  sanitizeElement,
+  SAVE_FAILED_MESSAGE,
   type LetterData,
   type LetterElement,
 } from '@/templates/letterTemplate';
@@ -38,25 +40,38 @@ function isSavedTemplate(value: unknown): value is SavedTemplate {
   return !!v && v.library === 'react-pdf' && Array.isArray(v.elements);
 }
 
+// Turns saved or imported JSON into safe elements. Broken entries are dropped,
+// so a damaged file can never crash the editor. Returns null if nothing usable is left.
+function readElements(value: unknown): LetterElement[] | null {
+  if (!isSavedTemplate(value)) return null;
+  const elements = value.elements
+    .map(sanitizeElement)
+    .filter((el): el is LetterElement => el !== null);
+  return elements.length > 0 ? elements : null;
+}
+
 export function ReactPdfSection() {
   const [tab, setTab] = useState<Tab>('designer');
-  const [elements, setElements] = useState<LetterElement[]>(() => {
-    const saved = loadFromStorage<SavedTemplate>(STORAGE_KEY);
-    return isSavedTemplate(saved) ? saved.elements : cloneElements(SAMPLE_ELEMENTS);
-  });
+  const [elements, setElements] = useState<LetterElement[]>(
+    () => readElements(loadFromStorage(STORAGE_KEY)) ?? cloneElements(SAMPLE_ELEMENTS)
+  );
   const [data, setData] = useState<LetterData>(SAMPLE_DATA);
   const [showBoxes, setShowBoxes] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const messageTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(messageTimer.current), []);
 
   useEffect(() => () => {
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
   }, [pdfUrl]);
 
+  // Shows a short status message. A new message cancels the old timer.
   function flash(text: string) {
+    window.clearTimeout(messageTimer.current);
     setMessage(text);
-    setTimeout(() => setMessage(''), 2500);
+    messageTimer.current = window.setTimeout(() => setMessage(''), 4000);
   }
 
   function toSaved(): SavedTemplate {
@@ -64,14 +79,13 @@ export function ReactPdfSection() {
   }
 
   function handleSave() {
-    saveToStorage(STORAGE_KEY, toSaved());
-    flash('Template saved in this browser.');
+    flash(saveToStorage(STORAGE_KEY, toSaved()) ? 'Template saved in this browser.' : SAVE_FAILED_MESSAGE);
   }
 
   function handleLoad() {
-    const saved = loadFromStorage<SavedTemplate>(STORAGE_KEY);
-    if (!isSavedTemplate(saved)) return flash('No saved template yet.');
-    setElements(saved.elements);
+    const saved = readElements(loadFromStorage(STORAGE_KEY));
+    if (!saved) return flash('No saved template yet.');
+    setElements(saved);
     flash('Saved template loaded.');
   }
 
@@ -83,8 +97,9 @@ export function ReactPdfSection() {
   async function handleImport() {
     const json = await pickJsonFile();
     if (!json) return;
-    if (!isSavedTemplate(json)) return alert('This is not a React PDF template exported from this page.');
-    setElements(json.elements);
+    const imported = readElements(json);
+    if (!imported) return alert('This is not a React PDF template exported from this page.');
+    setElements(imported);
     flash('Template imported.');
   }
 

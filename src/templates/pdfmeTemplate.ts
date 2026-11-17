@@ -79,5 +79,21 @@ export function withLayoutBoxes(template: Template): Template {
 // editable (non read-only) fields in the template, then add the JSON data on top.
 export function buildPdfmeInputs(template: Template, data: LetterData) {
   const defaults = getInputFromTemplate(template)[0] ?? {};
-  return [{ ...defaults, ...data }];
+  return [{ ...defaults, ...keepAsText(data) }];
+}
+
+// pdfme reads placeholder values as JSON, so "918.00" becomes the number 918 and prints as "918".
+// Wrapping such values in quotes ('"918.00"') makes pdfme keep them as text, exactly as typed.
+function keepAsText(data: LetterData): LetterData {
+  const out: LetterData = {};
+  for (const [key, value] of Object.entries(data)) {
+    let parsed: unknown = value;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      // not JSON, so pdfme already treats it as plain text
+    }
+    out[key] = typeof parsed === 'string' || parsed === value ? value : JSON.stringify(value);
+  }
+  return out;
 }

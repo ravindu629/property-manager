@@ -154,6 +154,8 @@ export function cloneElements(elements: LetterElement[]): LetterElement[] {
 
 // ---------- Saving and loading helpers (used by both sections) ----------
 
+// Returns false when the browser refuses (for example storage is full, about 5 MB,
+// which large uploaded images can reach). Callers must tell the user it did not save.
 export function saveToStorage(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -161,6 +163,35 @@ export function saveToStorage(key: string, value: unknown) {
   } catch {
     return false;
   }
+}
+
+export const SAVE_FAILED_MESSAGE =
+  'Could not save: browser storage is full (large images use a lot of space). Use Export JSON instead.';
+
+// Checks one element read from storage or an imported file, and fills safe defaults.
+// Returns null if it is not usable, so a broken file can never crash the editor.
+export function sanitizeElement(value: unknown): LetterElement | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Partial<LetterElement>;
+  const num = (n: unknown, fallback: number) =>
+    typeof n === 'number' && Number.isFinite(n) ? n : fallback;
+  if (typeof v.id !== 'string' || (v.type !== 'text' && v.type !== 'image')) return null;
+  return {
+    id: v.id,
+    label: typeof v.label === 'string' ? v.label : v.id,
+    type: v.type,
+    x: num(v.x, 20),
+    y: num(v.y, 20),
+    width: Math.max(1, num(v.width, 50)),
+    height: Math.max(1, num(v.height, 10)),
+    content: typeof v.content === 'string' ? v.content : '',
+    fontSize: Math.max(1, num(v.fontSize, 10)),
+    lineHeight: Math.max(0.5, num(v.lineHeight, 1.4)),
+    align: v.align === 'center' || v.align === 'right' ? v.align : 'left',
+    bold: v.bold === true,
+    color: typeof v.color === 'string' && /^#[0-9a-f]{6}$/i.test(v.color) ? v.color : '#0f172a',
+    border: v.border === true,
+  };
 }
 
 export function loadFromStorage<T>(key: string): T | null {

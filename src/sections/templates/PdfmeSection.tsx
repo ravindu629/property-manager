@@ -21,6 +21,7 @@ import {
   loadFromStorage,
   pickJsonFile,
   saveToStorage,
+  SAVE_FAILED_MESSAGE,
   type LetterData,
 } from '@/templates/letterTemplate';
 import {
@@ -34,20 +35,34 @@ import { DataJsonEditor, Notice, PdfPreview, TabSwitch, ToolButton } from '@/tem
 const STORAGE_KEY = 'procuratio.pdfme.template';
 type Tab = 'designer' | 'generate';
 
+// Reads the saved template, but only if pdfme accepts it (old or broken data is ignored).
+function loadStoredTemplate(): Template | null {
+  const saved = loadFromStorage<Template>(STORAGE_KEY);
+  if (!saved) return null;
+  try {
+    checkTemplate(saved);
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
 export function PdfmeSection() {
   const [tab, setTab] = useState<Tab>('designer');
 
   // The latest template is kept in a ref so the designer and generator always share it.
-  const templateRef = useRef<Template>(
-    loadFromStorage<Template>(STORAGE_KEY) ?? toPdfmeTemplate(SAMPLE_ELEMENTS)
+  // useState(() => ...) reads storage once, on the first render only (not on every re-render).
+  const [initialTemplate] = useState<Template>(
+    () => loadStoredTemplate() ?? toPdfmeTemplate(SAMPLE_ELEMENTS)
   );
+  const templateRef = useRef<Template>(initialTemplate);
   const designerBox = useRef<HTMLDivElement>(null);
   const designer = useRef<Designer | null>(null);
   // Live preview: pdfme's Viewer shows the same template with the JSON values filled in.
   const viewerBox = useRef<HTMLDivElement>(null);
   const viewer = useRef<Viewer | null>(null);
   const previewTimer = useRef<number | undefined>(undefined);
-  const [showValues, setShowValues] = useState(true);
+  const [showValues, setShowValues] = useState(false); // preview is off until the user ticks the checkbox
 
   const [data, setData] = useState<LetterData>(SAMPLE_DATA);
   const dataRef = useRef(data);
@@ -56,6 +71,8 @@ export function PdfmeSection() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const messageTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(messageTimer.current), []);
 
   // Step 1: create the pdfme Designer inside our <div> when the Designer tab is open.
   useEffect(() => {
@@ -75,8 +92,7 @@ export function PdfmeSection() {
     // The designer has its own "Save" button. We store the template when it is clicked.
     d.onSaveTemplate((t) => {
       templateRef.current = t;
-      saveToStorage(STORAGE_KEY, t);
-      flash('Template saved in this browser.');
+      flash(saveToStorage(STORAGE_KEY, t) ? 'Template saved in this browser.' : SAVE_FAILED_MESSAGE);
     });
     designer.current = d;
     return () => {
@@ -128,9 +144,12 @@ export function PdfmeSection() {
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
   }, [pdfUrl]);
 
+  // Shows a short status message. A new message cancels the old timer, so it never
+  // disappears early.
   function flash(text: string) {
+    window.clearTimeout(messageTimer.current);
     setMessage(text);
-    setTimeout(() => setMessage(''), 2500);
+    messageTimer.current = window.setTimeout(() => setMessage(''), 4000);
   }
 
   function currentTemplate(): Template {
@@ -146,12 +165,11 @@ export function PdfmeSection() {
   function handleSave() {
     const t = currentTemplate();
     templateRef.current = t;
-    saveToStorage(STORAGE_KEY, t);
-    flash('Template saved in this browser.');
+    flash(saveToStorage(STORAGE_KEY, t) ? 'Template saved in this browser.' : SAVE_FAILED_MESSAGE);
   }
 
   function handleLoad() {
-    const saved = loadFromStorage<Template>(STORAGE_KEY);
+    const saved = loadStoredTemplate();
     if (!saved) return flash('No saved template yet.');
     applyTemplate(saved);
     flash('Saved template loaded.');
@@ -257,7 +275,8 @@ export function PdfmeSection() {
             as {'{recipientName}'} that are filled from the JSON data.
           </Notice>
           <div className={showValues ? 'grid gap-4 xl:grid-cols-[3fr_2fr]' : ''}>
-            <div>
+            {/* min-w-0 lets the designer shrink when the preview column appears */}
+            <div className="min-w-0">
               {showValues && <p className="mb-1 text-xs font-medium text-slate-500">Designer (edit the template)</p>}
               <div
                 ref={designerBox}
@@ -265,7 +284,7 @@ export function PdfmeSection() {
               />
             </div>
             {showValues && (
-              <div>
+              <div className="min-w-0">
                 <p className="mb-1 text-xs font-medium text-slate-500">Live preview with JSON values</p>
                 <div
                   ref={viewerBox}
