@@ -56,6 +56,9 @@ export function DesignerPage({
   // Keep the newest callbacks in a ref, so the designer (created once) always calls them.
   const callbacks = useRef({ onTemplateChange, onSave });
   callbacks.current = { onTemplateChange, onSave };
+  // True while we load a template into the designer ourselves (Reset, JSON, base PDF).
+  // pdfme reports that load as a change, but it is not a user edit, so we ignore it.
+  const loadingTemplate = useRef(false);
 
   // Create the designer when a different document is opened.
   useEffect(() => {
@@ -66,7 +69,9 @@ export function DesignerPage({
       plugins: demoPlugins,
       options: { lang },
     });
-    d.onChangeTemplate((t) => callbacks.current.onTemplateChange(t));
+    d.onChangeTemplate((t) => {
+      if (!loadingTemplate.current) callbacks.current.onTemplateChange(t);
+    });
     d.onSaveTemplate((t) => callbacks.current.onSave(t)); // Ctrl+S inside the designer
     designer.current = d;
     return () => {
@@ -82,7 +87,12 @@ export function DesignerPage({
   useEffect(() => {
     if (doc.revision === shownRevision.current) return;
     shownRevision.current = doc.revision;
-    designer.current?.updateTemplate(doc.template);
+    loadingTemplate.current = true;
+    try {
+      designer.current?.updateTemplate(doc.template);
+    } finally {
+      loadingTemplate.current = false;
+    }
   }, [doc.revision, doc.template]);
 
   const current = (): Template => designer.current?.getTemplate() ?? doc.template;
