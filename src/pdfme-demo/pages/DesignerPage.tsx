@@ -27,6 +27,7 @@ export function DesignerPage({
   doc,
   saving,
   onTemplateChange,
+  onTemplateSync,
   onReplaceTemplate,
   onSave,
   onSaveAs,
@@ -38,6 +39,8 @@ export function DesignerPage({
   saving: boolean;
   /** Called on every edit made inside the designer. */
   onTemplateChange: (template: Template) => void;
+  /** Called when pdfme adjusts the template by itself (for example table sizes). Not an edit. */
+  onTemplateSync: (template: Template) => void;
   /** Called when the template is replaced from the toolbar (JSON edit, base PDF). */
   onReplaceTemplate: (template: Template) => void;
   onSave: (template: Template) => void;
@@ -54,11 +57,11 @@ export function DesignerPage({
   const [generating, setGenerating] = useState(false);
 
   // Keep the newest callbacks in a ref, so the designer (created once) always calls them.
-  const callbacks = useRef({ onTemplateChange, onSave });
-  callbacks.current = { onTemplateChange, onSave };
-  // True while we load a template into the designer ourselves (Reset, JSON, base PDF).
-  // pdfme reports that load as a change, but it is not a user edit, so we ignore it.
-  const loadingTemplate = useRef(false);
+  const callbacks = useRef({ onTemplateChange, onTemplateSync, onSave });
+  callbacks.current = { onTemplateChange, onTemplateSync, onSave };
+  // pdfme also reports changes it makes by itself, for example when it loads a template or
+  // measures a table. Only changes after the user clicks or types in the designer count as edits.
+  const userActive = useRef(false);
 
   // Create the designer when a different document is opened.
   useEffect(() => {
@@ -69,12 +72,21 @@ export function DesignerPage({
       plugins: demoPlugins,
       options: { lang },
     });
-    d.onChangeTemplate((t) => {
-      if (!loadingTemplate.current) callbacks.current.onTemplateChange(t);
-    });
+    d.onChangeTemplate((t) =>
+      userActive.current ? callbacks.current.onTemplateChange(t) : callbacks.current.onTemplateSync(t)
+    );
     d.onSaveTemplate((t) => callbacks.current.onSave(t)); // Ctrl+S inside the designer
     designer.current = d;
+    userActive.current = false;
+    const container = box.current;
+    const markActive = () => {
+      userActive.current = true;
+    };
+    container.addEventListener('pointerdown', markActive, true);
+    container.addEventListener('keydown', markActive, true);
     return () => {
+      container.removeEventListener('pointerdown', markActive, true);
+      container.removeEventListener('keydown', markActive, true);
       d.destroy();
       designer.current = null;
     };
@@ -87,12 +99,9 @@ export function DesignerPage({
   useEffect(() => {
     if (doc.revision === shownRevision.current) return;
     shownRevision.current = doc.revision;
-    loadingTemplate.current = true;
-    try {
-      designer.current?.updateTemplate(doc.template);
-    } finally {
-      loadingTemplate.current = false;
-    }
+    // A newly loaded template starts clean until the user edits it again.
+    userActive.current = false;
+    designer.current?.updateTemplate(doc.template);
   }, [doc.revision, doc.template]);
 
   const current = (): Template => designer.current?.getTemplate() ?? doc.template;

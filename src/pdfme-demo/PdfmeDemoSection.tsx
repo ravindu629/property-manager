@@ -145,6 +145,9 @@ export function PdfmeDemoSection({
   const onTemplateChange = (template: Template) =>
     setDoc((d) => (d ? { ...d, template, dirty: true } : d));
 
+  // pdfme adjusted the template by itself (not a user edit): keep it, but stay clean.
+  const onTemplateSync = (template: Template) => setDoc((d) => (d ? { ...d, template } : d));
+
   const onReplaceTemplate = (template: Template) =>
     setDoc((d) => (d ? { ...d, template, revision: d.revision + 1, dirty: true } : d));
 
@@ -310,6 +313,7 @@ export function PdfmeDemoSection({
               doc={doc}
               saving={saving}
               onTemplateChange={onTemplateChange}
+              onTemplateSync={onTemplateSync}
               onReplaceTemplate={onReplaceTemplate}
               onSave={save}
               onSaveAs={(template) => setDetailsDialog({ mode: 'saveAs', template })}
