@@ -11,6 +11,7 @@ import { TransfersSection } from '@/sections/TransfersSection';
 import { S20Section } from '@/sections/S20Section';
 import { LibrarySection } from '@/sections/LibrarySection';
 import type { DemoTab } from '@/pdfme-demo/types';
+import { ConfirmDialog } from '@/pdfme-demo/components/dialogs';
 // pdfme is large, so Template Studio is only downloaded when opened.
 const PdfmeDemoSection = lazy(() =>
   import('@/pdfme-demo/PdfmeDemoSection').then((m) => ({ default: m.PdfmeDemoSection }))
@@ -42,6 +43,8 @@ function App() {
   const [openUnitId, setOpenUnitId] = useState<string | null>(null);
   const [showSitePopup, setShowSitePopup] = useState(false);
   const [templatesDirty, setTemplatesDirty] = useState(false);
+  // Page the user wants to open after leaving Template Studio with unsaved changes.
+  const [pendingSection, setPendingSection] = useState<SectionKey | null>(null);
   const templateTab = templateTabByKey[active];
 
   useEffect(() => {
@@ -58,10 +61,20 @@ function App() {
       });
   }, []);
 
-  function handleSelect(key: SectionKey) {
+  function openSection(key: SectionKey) {
     setOpenUnitId(null);
+    setActive(key);
+  }
+
+  function handleSelect(key: SectionKey) {
     // Clicking "Templates" opens Template Studio on its Library tab.
-    setActive(key === 'templates' ? 'templates-gallery' : key);
+    const target = key === 'templates' ? 'templates-gallery' : key;
+    // Leaving Template Studio with unsaved changes: ask first.
+    if (templateTab && templatesDirty && !templateTabByKey[target]) {
+      setPendingSection(target);
+      return;
+    }
+    openSection(target);
   }
 
   function handleSiteIconClick() {
@@ -135,6 +148,17 @@ function App() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={pendingSection !== null}
+        title="Leave Template Studio?"
+        message="You have unsaved changes in Template Studio. If you leave now, they will be lost."
+        confirmLabel="Leave without saving"
+        onConfirm={() => {
+          if (pendingSection) openSection(pendingSection);
+          setPendingSection(null);
+        }}
+        onClose={() => setPendingSection(null)}
+      />
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-7xl px-6 py-8">
           {/* key resets the error message when the user opens another page.
