@@ -1,23 +1,17 @@
-import { ArrowRight, FileCode2, LayoutTemplate } from 'lucide-react';
+import { ArrowRight, Wand2 } from 'lucide-react';
 
-// Landing page for Templates. It links to the two library test sections.
+// Landing page for Templates. It links to the pdfme demo section.
 export function TemplatesSection({
   onOpen,
 }: {
-  onOpen: (key: 'templates-pdfme' | 'templates-reactpdf') => void;
+  onOpen: (key: 'templates-pdfme-demo') => void;
 }) {
   const cards = [
     {
-      key: 'templates-pdfme' as const,
-      title: 'pdfme',
-      icon: LayoutTemplate,
-      text: 'Ready-made drag-and-drop template designer. Templates are JSON with mm positions.',
-    },
-    {
-      key: 'templates-reactpdf' as const,
-      title: 'React PDF',
-      icon: FileCode2,
-      text: 'PDFs written as React components, with a custom mm positioning editor built for this test.',
+      key: 'templates-pdfme-demo' as const,
+      title: 'pdfme demo',
+      icon: Wand2,
+      text: 'Design, fill and preview PDF templates with pdfme. Templates are JSON with mm positions.',
     },
   ];
 
@@ -25,7 +19,7 @@ export function TemplatesSection({
     <div>
       <h1 className="text-2xl font-bold tracking-tight text-slate-900">Templates</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Proof of concept comparing two PDF libraries using the same A4 letter template and JSON data.
+        Create and manage PDF templates for letters and documents.
       </p>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         {cards.map((c) => {

@@ -18,8 +18,6 @@ import {
   CreditCard,
   BarChart3,
   Landmark,
-  LayoutTemplate,
-  FileCode2,
   Wand2,
 } from 'lucide-react';
 import { type ComponentType } from 'react';
@@ -41,8 +39,6 @@ export type SectionKey =
   | 's20'
   | 'library'
   | 'templates'
-  | 'templates-pdfme'
-  | 'templates-reactpdf'
   | 'templates-pdfme-demo'
   | 'admin';
 
@@ -82,8 +78,6 @@ const subItems: SubItem[] = [
   { key: 'finance-credit-control', label: 'Credit Control', icon: CreditCard, parent: 'finance' },
   { key: 'finance-reports', label: 'Reports', icon: BarChart3, parent: 'finance' },
   { key: 'finance-accounts', label: 'Accounts', icon: Landmark, parent: 'finance' },
-  { key: 'templates-pdfme', label: 'pdfme', icon: LayoutTemplate, parent: 'templates' },
-  { key: 'templates-reactpdf', label: 'React PDF', icon: FileCode2, parent: 'templates' },
   { key: 'templates-pdfme-demo', label: 'pdfme demo', icon: Wand2, parent: 'templates' },
 ];
 
@@ -110,8 +104,6 @@ export function Sidebar({
     active === 'finance-accounts';
   const templatesExpanded =
     active === 'templates' ||
-    active === 'templates-pdfme' ||
-    active === 'templates-reactpdf' ||
     active === 'templates-pdfme-demo';
 
   return (

@@ -11,13 +11,7 @@ import { TransfersSection } from '@/sections/TransfersSection';
 import { S20Section } from '@/sections/S20Section';
 import { LibrarySection } from '@/sections/LibrarySection';
 import { TemplatesSection } from '@/sections/TemplatesSection';
-// The PDF libraries are large, so these two pages are only downloaded when opened.
-const PdfmeSection = lazy(() =>
-  import('@/sections/templates/PdfmeSection').then((m) => ({ default: m.PdfmeSection }))
-);
-const ReactPdfSection = lazy(() =>
-  import('@/sections/templates/ReactPdfSection').then((m) => ({ default: m.ReactPdfSection }))
-);
+// pdfme is large, so the pdfme demo is only downloaded when opened.
 const PdfmeDemoSection = lazy(() =>
   import('@/pdfme-demo/PdfmeDemoSection').then((m) => ({ default: m.PdfmeDemoSection }))
 );
@@ -79,8 +73,6 @@ function App() {
       case 's20': return <S20Section />;
       case 'library': return <LibrarySection />;
       case 'templates': return <TemplatesSection onOpen={handleSelect} />;
-      case 'templates-pdfme': return <PdfmeSection />;
-      case 'templates-reactpdf': return <ReactPdfSection />;
       case 'templates-pdfme-demo': return <PdfmeDemoSection />;
       case 'admin': return <AdminSection />;
       default: return <SiteDashboard />;
