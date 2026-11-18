@@ -60,7 +60,7 @@ function App() {
 
   function handleSelect(key: SectionKey) {
     setOpenUnitId(null);
-    // Clicking "Templates" opens Template Studio on its Templates tab.
+    // Clicking "Templates" opens Template Studio on its Library tab.
     setActive(key === 'templates' ? 'templates-gallery' : key);
   }
 

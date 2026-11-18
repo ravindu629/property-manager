@@ -84,7 +84,7 @@ const subItems: SubItem[] = [
   { key: 'finance-credit-control', label: 'Credit Control', icon: CreditCard, parent: 'finance' },
   { key: 'finance-reports', label: 'Reports', icon: BarChart3, parent: 'finance' },
   { key: 'finance-accounts', label: 'Accounts', icon: Landmark, parent: 'finance' },
-  { key: 'templates-gallery', label: 'Templates', icon: LayoutGrid, parent: 'templates' },
+  { key: 'templates-gallery', label: 'Library', icon: LayoutGrid, parent: 'templates' },
   { key: 'templates-workspace', label: 'My Workspace', icon: FolderOpen, parent: 'templates' },
   { key: 'templates-designer', label: 'Designer', icon: Pencil, parent: 'templates' },
   { key: 'templates-form-viewer', label: 'Form/Viewer', icon: Eye, parent: 'templates' },

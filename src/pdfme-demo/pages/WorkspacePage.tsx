@@ -172,7 +172,7 @@ export function WorkspacePage({
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <p className="text-sm font-medium text-slate-700">Your workspace is empty.</p>
           <p className="mt-1 text-sm text-slate-500">
-            Save a template from the Designer, use "Save to My Workspace" on the Templates tab, or import a JSON file.
+            Save a template from the Designer, use "Save to My Workspace" on the Library tab, or import a JSON file.
           </p>
         </div>
       ) : (

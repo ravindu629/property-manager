@@ -1,4 +1,4 @@
-// Built-in example templates shown on the Templates tab.
+// Built-in example templates shown on the Library tab.
 // Each field starts from the plugin's own default settings (propPanel.defaultSchema),
 // so it always has every property pdfme expects. Positions and sizes are in millimetres.
 //

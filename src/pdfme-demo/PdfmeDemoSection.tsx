@@ -1,4 +1,4 @@
-// Template Studio section: Templates, My Workspace, Designer and Form/Viewer tabs,
+// Template Studio section: Library, My Workspace, Designer and Form/Viewer tabs,
 // modelled on the official pdfme playground (https://playground.pdfme.com/).
 //
 // The current tab is controlled by App (props `tab` and `onTabChange`), so the sidebar
@@ -20,7 +20,7 @@ import { DemoButton, ToastView } from '@/pdfme-demo/components/ui';
 import { useToast } from '@/pdfme-demo/components/useToast';
 
 const TABS: { key: DemoTab; label: string; icon: typeof Eye }[] = [
-  { key: 'templates', label: 'Templates', icon: LayoutGrid },
+  { key: 'templates', label: 'Library', icon: LayoutGrid },
   { key: 'workspace', label: 'My Workspace', icon: FolderOpen },
   { key: 'designer', label: 'Designer', icon: Pencil },
   { key: 'form-viewer', label: 'Form/Viewer', icon: Eye },
@@ -233,7 +233,7 @@ export function PdfmeDemoSection({
       <p className="mt-1 text-sm text-slate-500">Choose an example, open one from your workspace, or start from a blank page.</p>
       <div className="mt-4 flex gap-2">
         <DemoButton onClick={() => setTab('templates')}>
-          <LayoutGrid className="h-3.5 w-3.5" /> Templates
+          <LayoutGrid className="h-3.5 w-3.5" /> Library
         </DemoButton>
         <DemoButton onClick={() => setTab('workspace')}>
           <FolderOpen className="h-3.5 w-3.5" /> My Workspace
