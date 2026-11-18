@@ -2,7 +2,7 @@
 // (browser storage today, Spring Boot + PostgreSQL later).
 
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Database, Download, Eye, FileUp, HardDrive, Pencil, Plus, RefreshCw, Trash2, Type } from 'lucide-react';
+import { Copy, Download, Eye, FileUp, Pencil, Plus, RefreshCw, Trash2, Type } from 'lucide-react';
 import { checkTemplate, type Template } from '@pdfme/common';
 import { templateApi } from '@/pdfme-demo/api/templateApi';
 import type { TemplateSummary } from '@/pdfme-demo/types';
@@ -119,7 +119,7 @@ export function WorkspacePage({
       checkTemplate(template); // throws if it is not a valid pdfme template
       setDialog({ type: 'import', template, fileName: file.name.replace(/\.json$/i, '') });
     } catch (e) {
-      notify(`Not a valid pdfme template: ${errorText(e)}`, 'error');
+      notify(`Not a valid template file: ${errorText(e)}`, 'error');
     }
   }
 
@@ -132,17 +132,10 @@ export function WorkspacePage({
     });
   }
 
-  const StorageIcon = templateApi.mode === 'rest' ? Database : HardDrive;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm text-slate-500">
-          <StorageIcon className="h-4 w-4" />
-          {templateApi.mode === 'rest'
-            ? 'Templates are saved on the server (Spring Boot + PostgreSQL).'
-            : 'Templates are saved in this browser for now. They will move to the Spring Boot backend later.'}
-        </p>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="flex gap-1">
           <DemoButton onClick={load}>
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
@@ -172,7 +165,7 @@ export function WorkspacePage({
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <p className="text-sm font-medium text-slate-700">Your workspace is empty.</p>
           <p className="mt-1 text-sm text-slate-500">
-            Save a template from the Designer, use "Save to My Workspace" on the Templates tab, or import a JSON file.
+            Save a template from the Designer, use "Save to My Workspace" on the Library tab, or import a JSON file.
           </p>
         </div>
       ) : (

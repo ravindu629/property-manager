@@ -34,7 +34,7 @@ export interface TemplatePayload {
   sampleInputs: Inputs;
 }
 
-/** A built-in example shown on the Templates tab. */
+/** A built-in example shown on the Library tab. */
 export interface GalleryItem {
   id: string;
   name: string;

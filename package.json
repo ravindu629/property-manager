@@ -16,7 +16,6 @@
     "@pdfme/generator": "^6.2.8",
     "@pdfme/schemas": "^6.2.8",
     "@pdfme/ui": "^6.2.8",
-    "@react-pdf/renderer": "^4.9.0",
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.446.0",
     "react": "^18.3.1",

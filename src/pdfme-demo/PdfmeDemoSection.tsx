@@ -1,6 +1,8 @@
-// "pdfme demo" section: Templates, My Workspace, Designer and Form/Viewer tabs,
+// Template Studio section: Library, My Workspace, Designer and Form/Viewer tabs,
 // modelled on the official pdfme playground (https://playground.pdfme.com/).
 //
+// The current tab is controlled by App (props `tab` and `onTabChange`), so the sidebar
+// and the tab bar on this page always show the same tab.
 // This component owns the "open document" (the template being edited) and all saving.
 // Saving goes through `templateApi` (browser storage now, Spring Boot REST API later).
 
@@ -18,7 +20,7 @@ import { DemoButton, ToastView } from '@/pdfme-demo/components/ui';
 import { useToast } from '@/pdfme-demo/components/useToast';
 
 const TABS: { key: DemoTab; label: string; icon: typeof Eye }[] = [
-  { key: 'templates', label: 'Templates', icon: LayoutGrid },
+  { key: 'templates', label: 'Library', icon: LayoutGrid },
   { key: 'workspace', label: 'My Workspace', icon: FolderOpen },
   { key: 'designer', label: 'Designer', icon: Pencil },
   { key: 'form-viewer', label: 'Form/Viewer', icon: Eye },
@@ -50,8 +52,16 @@ function makeDocument(
 
 type DetailsMode = { mode: 'save' | 'saveAs'; template: Template } | null;
 
-export function PdfmeDemoSection() {
-  const [tab, setTab] = useState<DemoTab>('templates');
+export function PdfmeDemoSection({
+  tab,
+  onTabChange: setTab,
+  onDirtyChange,
+}: {
+  tab: DemoTab;
+  onTabChange: (tab: DemoTab) => void;
+  /** Tells App when there are unsaved changes, so the sidebar can show a red dot. */
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const [doc, setDoc] = useState<OpenDocument | null>(null);
   const [saving, setSaving] = useState(false);
   const [detailsDialog, setDetailsDialog] = useState<DetailsMode>(null);
@@ -59,6 +69,11 @@ export function PdfmeDemoSection() {
   const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
   const [copyingId, setCopyingId] = useState<string | null>(null);
   const [toast, notify] = useToast();
+
+  // Keep the sidebar's unsaved-changes dot up to date, and clear it when this page closes.
+  const dirty = !!doc?.dirty;
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   // Warn before closing the browser tab with unsaved changes.
   useEffect(() => {
@@ -218,7 +233,7 @@ export function PdfmeDemoSection() {
       <p className="mt-1 text-sm text-slate-500">Choose an example, open one from your workspace, or start from a blank page.</p>
       <div className="mt-4 flex gap-2">
         <DemoButton onClick={() => setTab('templates')}>
-          <LayoutGrid className="h-3.5 w-3.5" /> Templates
+          <LayoutGrid className="h-3.5 w-3.5" /> Library
         </DemoButton>
         <DemoButton onClick={() => setTab('workspace')}>
           <FolderOpen className="h-3.5 w-3.5" /> My Workspace
@@ -235,14 +250,14 @@ export function PdfmeDemoSection() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-sky-600">Templates</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">pdfme demo</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Template Studio</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Design, save and fill PDF templates, based on the official pdfme playground.
+            Design, save and fill PDF templates for letters and documents.
           </p>
         </div>
       </div>
 
-      <nav className="mt-5 flex gap-1 border-b border-slate-200" aria-label="pdfme demo sections">
+      <nav className="mt-5 flex gap-1 border-b border-slate-200" aria-label="Template Studio sections">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
