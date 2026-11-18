@@ -235,14 +235,14 @@ export function PdfmeDemoSection() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-sky-600">Templates</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">pdfme demo</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Template Studio</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Design, save and fill PDF templates, based on the official pdfme playground.
+            Design, save and fill PDF templates for letters and documents.
           </p>
         </div>
       </div>
 
-      <nav className="mt-5 flex gap-1 border-b border-slate-200" aria-label="pdfme demo sections">
+      <nav className="mt-5 flex gap-1 border-b border-slate-200" aria-label="Template Studio sections">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;

@@ -119,7 +119,7 @@ export function WorkspacePage({
       checkTemplate(template); // throws if it is not a valid pdfme template
       setDialog({ type: 'import', template, fileName: file.name.replace(/\.json$/i, '') });
     } catch (e) {
-      notify(`Not a valid pdfme template: ${errorText(e)}`, 'error');
+      notify(`Not a valid template file: ${errorText(e)}`, 'error');
     }
   }
 

@@ -78,7 +78,7 @@ const subItems: SubItem[] = [
   { key: 'finance-credit-control', label: 'Credit Control', icon: CreditCard, parent: 'finance' },
   { key: 'finance-reports', label: 'Reports', icon: BarChart3, parent: 'finance' },
   { key: 'finance-accounts', label: 'Accounts', icon: Landmark, parent: 'finance' },
-  { key: 'templates-pdfme-demo', label: 'pdfme demo', icon: Wand2, parent: 'templates' },
+  { key: 'templates-pdfme-demo', label: 'Template Studio', icon: Wand2, parent: 'templates' },
 ];
 
 export function Sidebar({

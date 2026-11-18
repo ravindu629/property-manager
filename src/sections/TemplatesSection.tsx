@@ -1,6 +1,6 @@
 import { ArrowRight, Wand2 } from 'lucide-react';
 
-// Landing page for Templates. It links to the pdfme demo section.
+// Landing page for Templates. It links to Template Studio.
 export function TemplatesSection({
   onOpen,
 }: {
@@ -9,9 +9,9 @@ export function TemplatesSection({
   const cards = [
     {
       key: 'templates-pdfme-demo' as const,
-      title: 'pdfme demo',
+      title: 'Template Studio',
       icon: Wand2,
-      text: 'Design, fill and preview PDF templates with pdfme. Templates are JSON with mm positions.',
+      text: 'Design, fill and preview PDF templates for letters and documents.',
     },
   ];
 

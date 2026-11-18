@@ -19,7 +19,7 @@ const validateTemplate = (value: unknown): string | null => {
     checkTemplate(value as Template);
     return null;
   } catch (e) {
-    return `Not a valid pdfme template: ${e instanceof Error ? e.message : String(e)}`;
+    return `Not a valid template file: ${e instanceof Error ? e.message : String(e)}`;
   }
 };
 
