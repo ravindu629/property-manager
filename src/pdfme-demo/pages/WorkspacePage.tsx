@@ -2,7 +2,7 @@
 // (browser storage today, Spring Boot + PostgreSQL later).
 
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Database, Download, Eye, FileUp, HardDrive, Pencil, Plus, RefreshCw, Trash2, Type } from 'lucide-react';
+import { Copy, Download, Eye, FileUp, Pencil, Plus, RefreshCw, Trash2, Type } from 'lucide-react';
 import { checkTemplate, type Template } from '@pdfme/common';
 import { templateApi } from '@/pdfme-demo/api/templateApi';
 import type { TemplateSummary } from '@/pdfme-demo/types';
@@ -132,17 +132,10 @@ export function WorkspacePage({
     });
   }
 
-  const StorageIcon = templateApi.mode === 'rest' ? Database : HardDrive;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm text-slate-500">
-          <StorageIcon className="h-4 w-4" />
-          {templateApi.mode === 'rest'
-            ? 'Templates are saved on the server (Spring Boot + PostgreSQL).'
-            : 'Templates are saved in this browser for now. They will move to the Spring Boot backend later.'}
-        </p>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="flex gap-1">
           <DemoButton onClick={load}>
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
