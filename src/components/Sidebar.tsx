@@ -18,7 +18,10 @@ import {
   CreditCard,
   BarChart3,
   Landmark,
-  Wand2,
+  LayoutGrid,
+  FolderOpen,
+  Pencil,
+  Eye,
 } from 'lucide-react';
 import { type ComponentType } from 'react';
 
@@ -39,7 +42,10 @@ export type SectionKey =
   | 's20'
   | 'library'
   | 'templates'
-  | 'templates-pdfme-demo'
+  | 'templates-gallery'
+  | 'templates-workspace'
+  | 'templates-designer'
+  | 'templates-form-viewer'
   | 'admin';
 
 interface NavItem {
@@ -78,19 +84,28 @@ const subItems: SubItem[] = [
   { key: 'finance-credit-control', label: 'Credit Control', icon: CreditCard, parent: 'finance' },
   { key: 'finance-reports', label: 'Reports', icon: BarChart3, parent: 'finance' },
   { key: 'finance-accounts', label: 'Accounts', icon: Landmark, parent: 'finance' },
-  { key: 'templates-pdfme-demo', label: 'Template Studio', icon: Wand2, parent: 'templates' },
+  { key: 'templates-gallery', label: 'Templates', icon: LayoutGrid, parent: 'templates' },
+  { key: 'templates-workspace', label: 'My Workspace', icon: FolderOpen, parent: 'templates' },
+  { key: 'templates-designer', label: 'Designer', icon: Pencil, parent: 'templates' },
+  { key: 'templates-form-viewer', label: 'Form/Viewer', icon: Eye, parent: 'templates' },
 ];
+
+// Template Studio tabs that show a red dot when there are unsaved changes.
+const DIRTY_DOT_KEYS: SectionKey[] = ['templates-designer', 'templates-form-viewer'];
 
 export function Sidebar({
   active,
   onSelect,
   siteName,
   onSiteIconClick,
+  templatesDirty = false,
 }: {
   active: SectionKey;
   onSelect: (key: SectionKey) => void;
   siteName: string;
   onSiteIconClick?: () => void;
+  /** True when Template Studio has unsaved changes. */
+  templatesDirty?: boolean;
 }) {
   const groups = [...new Set(navItems.map((item) => item.group))];
   const siteExpanded = active === 'site' || active === 'site-units';
@@ -102,9 +117,7 @@ export function Sidebar({
     active === 'finance-credit-control' ||
     active === 'finance-reports' ||
     active === 'finance-accounts';
-  const templatesExpanded =
-    active === 'templates' ||
-    active === 'templates-pdfme-demo';
+  const templatesExpanded = active === 'templates' || active.startsWith('templates-');
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-200 bg-slate-900">
@@ -194,6 +207,9 @@ export function Sidebar({
                               >
                                 <SubIcon className="h-3.5 w-3.5 shrink-0" />
                                 <span className="truncate">{sub.label}</span>
+                                {templatesDirty && DIRTY_DOT_KEYS.includes(sub.key) && (
+                                  <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" title="Unsaved changes" />
+                                )}
                               </button>
                             );
                           })}

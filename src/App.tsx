@@ -10,8 +10,8 @@ import { InsuranceSection } from '@/sections/InsuranceSection';
 import { TransfersSection } from '@/sections/TransfersSection';
 import { S20Section } from '@/sections/S20Section';
 import { LibrarySection } from '@/sections/LibrarySection';
-import { TemplatesSection } from '@/sections/TemplatesSection';
-// pdfme is large, so the pdfme demo is only downloaded when opened.
+import type { DemoTab } from '@/pdfme-demo/types';
+// pdfme is large, so Template Studio is only downloaded when opened.
 const PdfmeDemoSection = lazy(() =>
   import('@/pdfme-demo/PdfmeDemoSection').then((m) => ({ default: m.PdfmeDemoSection }))
 );
@@ -21,12 +21,28 @@ import { UnitDetail } from '@/sections/UnitDetail';
 import { supabase } from '@/lib/supabase';
 import type { SiteSettings } from '@/lib/types';
 
+// Sidebar items under "Templates" and the Template Studio tab each one opens.
+const templateTabByKey: Partial<Record<SectionKey, DemoTab>> = {
+  'templates-gallery': 'templates',
+  'templates-workspace': 'workspace',
+  'templates-designer': 'designer',
+  'templates-form-viewer': 'form-viewer',
+};
+const templateKeyByTab: Record<DemoTab, SectionKey> = {
+  templates: 'templates-gallery',
+  workspace: 'templates-workspace',
+  designer: 'templates-designer',
+  'form-viewer': 'templates-form-viewer',
+};
+
 function App() {
   const [active, setActive] = useState<SectionKey>('site');
   const [siteName, setSiteName] = useState('Loading...');
   const [siteAddress, setSiteAddress] = useState('');
   const [openUnitId, setOpenUnitId] = useState<string | null>(null);
   const [showSitePopup, setShowSitePopup] = useState(false);
+  const [templatesDirty, setTemplatesDirty] = useState(false);
+  const templateTab = templateTabByKey[active];
 
   useEffect(() => {
     supabase
@@ -44,7 +60,8 @@ function App() {
 
   function handleSelect(key: SectionKey) {
     setOpenUnitId(null);
-    setActive(key);
+    // Clicking "Templates" opens Template Studio on its Templates tab.
+    setActive(key === 'templates' ? 'templates-gallery' : key);
   }
 
   function handleSiteIconClick() {
@@ -54,6 +71,17 @@ function App() {
   const renderSection = () => {
     if (active === 'site-units' && openUnitId) {
       return <UnitDetail unitId={openUnitId} onBack={() => setOpenUnitId(null)} />;
+    }
+
+    // All four Template Studio tabs use the same page, so the open template stays loaded.
+    if (templateTab) {
+      return (
+        <PdfmeDemoSection
+          tab={templateTab}
+          onTabChange={(tab) => setActive(templateKeyByTab[tab])}
+          onDirtyChange={setTemplatesDirty}
+        />
+      );
     }
 
     switch (active) {
@@ -72,8 +100,6 @@ function App() {
       case 'transfers': return <TransfersSection />;
       case 's20': return <S20Section />;
       case 'library': return <LibrarySection />;
-      case 'templates': return <TemplatesSection onOpen={handleSelect} />;
-      case 'templates-pdfme-demo': return <PdfmeDemoSection />;
       case 'admin': return <AdminSection />;
       default: return <SiteDashboard />;
     }
@@ -81,7 +107,13 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
-      <Sidebar active={active} onSelect={handleSelect} siteName={siteName} onSiteIconClick={handleSiteIconClick} />
+      <Sidebar
+        active={active}
+        onSelect={handleSelect}
+        siteName={siteName}
+        onSiteIconClick={handleSiteIconClick}
+        templatesDirty={templatesDirty}
+      />
       {showSitePopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40" onClick={() => setShowSitePopup(false)}>
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -105,8 +137,9 @@ function App() {
       )}
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-7xl px-6 py-8">
-          {/* key resets the error message when the user opens another page */}
-          <ErrorBoundary key={active}>
+          {/* key resets the error message when the user opens another page.
+              Template Studio tabs share one key so switching tabs keeps the open template. */}
+          <ErrorBoundary key={templateTab ? 'templates' : active}>
             <Suspense fallback={<p className="text-sm text-slate-400">Loading...</p>}>
               {renderSection()}
             </Suspense>

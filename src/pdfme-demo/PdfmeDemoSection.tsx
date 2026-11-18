@@ -1,6 +1,8 @@
-// "pdfme demo" section: Templates, My Workspace, Designer and Form/Viewer tabs,
+// Template Studio section: Templates, My Workspace, Designer and Form/Viewer tabs,
 // modelled on the official pdfme playground (https://playground.pdfme.com/).
 //
+// The current tab is controlled by App (props `tab` and `onTabChange`), so the sidebar
+// and the tab bar on this page always show the same tab.
 // This component owns the "open document" (the template being edited) and all saving.
 // Saving goes through `templateApi` (browser storage now, Spring Boot REST API later).
 
@@ -50,8 +52,16 @@ function makeDocument(
 
 type DetailsMode = { mode: 'save' | 'saveAs'; template: Template } | null;
 
-export function PdfmeDemoSection() {
-  const [tab, setTab] = useState<DemoTab>('templates');
+export function PdfmeDemoSection({
+  tab,
+  onTabChange: setTab,
+  onDirtyChange,
+}: {
+  tab: DemoTab;
+  onTabChange: (tab: DemoTab) => void;
+  /** Tells App when there are unsaved changes, so the sidebar can show a red dot. */
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const [doc, setDoc] = useState<OpenDocument | null>(null);
   const [saving, setSaving] = useState(false);
   const [detailsDialog, setDetailsDialog] = useState<DetailsMode>(null);
@@ -59,6 +69,11 @@ export function PdfmeDemoSection() {
   const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
   const [copyingId, setCopyingId] = useState<string | null>(null);
   const [toast, notify] = useToast();
+
+  // Keep the sidebar's unsaved-changes dot up to date, and clear it when this page closes.
+  const dirty = !!doc?.dirty;
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   // Warn before closing the browser tab with unsaved changes.
   useEffect(() => {
