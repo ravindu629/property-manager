@@ -55,8 +55,8 @@ and a case in `App.tsx`.
 
 ## Data and backend
 
-- Template Studio saves to the Spring Boot API when `VITE_TEMPLATE_API_URL` is set in `.env`,
-  otherwise to browser storage. The API contract is `src/pdfme-demo/api/API_CONTRACT.md`.
+- Template Studio saves to the Spring Boot API set by `VITE_TEMPLATE_API_URL` in `.env`
+  (required, there is no browser storage). The API contract is `src/pdfme-demo/api/API_CONTRACT.md`.
 - Everything else still uses Supabase (`src/lib/supabase.ts`). This is legacy: the plan is to move
   each area to the Spring Boot backend. Do not add new Supabase tables or features.
 
