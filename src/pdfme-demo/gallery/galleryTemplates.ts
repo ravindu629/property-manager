@@ -73,6 +73,7 @@ const page = (schemas: Schema[]): Template => ({ basePdf: A4, schemas: [schemas]
 
 const blank: GalleryItem = {
   id: 'blank-a4',
+  documentTypeCode: 'OTHER',
   name: 'Blank A4',
   description: 'An empty A4 page (210 x 297 mm). Start your own design from scratch.',
   tags: ['Basic'],
@@ -82,6 +83,7 @@ const blank: GalleryItem = {
 
 const letter: GalleryItem = {
   id: 'property-letter',
+  documentTypeCode: 'GENERAL_LETTER',
   name: 'Property letter',
   description: 'Standard A4 letter: letterhead, address box for a window envelope, subject, body and signature.',
   tags: ['Letter', 'Property'],
@@ -114,6 +116,7 @@ const letter: GalleryItem = {
 
 const demand: GalleryItem = {
   id: 'service-charge-demand',
+  documentTypeCode: 'SERVICE_CHARGE_DEMAND',
   name: 'Service charge demand',
   description: 'Invoice-style demand with a line-item table, totals, bank details and a payment QR code.',
   tags: ['Finance', 'Table', 'QR code'],
@@ -178,6 +181,7 @@ const demand: GalleryItem = {
 
 const receipt: GalleryItem = {
   id: 'payment-receipt',
+  documentTypeCode: 'PAYMENT_RECEIPT',
   name: 'Payment receipt',
   description: 'Receipt with a date field, large amount box and a verification QR code.',
   tags: ['Finance', 'Date', 'QR code'],
@@ -224,6 +228,7 @@ const checklistItems = [
 
 const inspection: GalleryItem = {
   id: 'inspection-checklist',
+  documentTypeCode: 'INSPECTION_REPORT',
   name: 'Property inspection checklist',
   description: 'Fillable form: checkboxes, a drop-down, a date and a hand-drawn signature. Try it on the Form/Viewer tab.',
   tags: ['Form', 'Checkbox', 'Signature'],

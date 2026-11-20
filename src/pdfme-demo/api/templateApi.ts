@@ -1,12 +1,23 @@
-// Template storage API used by the pdfme demo.
+// Template storage API used by Template Studio.
 //
-// The rest of the demo only talks to the `templateApi` object exported at the bottom.
-// Today it saves to the browser (localStorage). When the Spring Boot backend is ready,
-// set VITE_TEMPLATE_API_URL in .env (for example http://localhost:8082) and the same
-// screens will use the REST API instead. Nothing else needs to change.
-// The REST endpoints are described in ./API_CONTRACT.md.
+// The rest of the section only talks to the `templateApi` object exported at the bottom.
+// Templates are saved by the Spring Boot backend. Set VITE_TEMPLATE_API_URL in .env
+// (for example http://localhost:8082). The endpoints are described in ./API_CONTRACT.md.
+//
+// How versions work, in short:
+// - Saving changes the template's draft (a draft is created if there is none).
+// - Publishing turns the draft into the version in use. Older versions are kept.
 
-import type { TemplatePayload, TemplateRecord, TemplateSummary } from '@/pdfme-demo/types';
+import type {
+  CreateTemplatePayload,
+  DocumentType,
+  SaveDraftPayload,
+  TemplateDetail,
+  TemplateSummary,
+  UpdateTemplatePayload,
+  VersionRecord,
+  VersionSummary,
+} from '@/pdfme-demo/types';
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status?: number) {
@@ -15,128 +26,45 @@ export class ApiError extends Error {
   }
 }
 
+export interface TemplateListFilter {
+  documentTypeId?: string;
+  tag?: string;
+  ownerUserId?: string;
+  includeArchived?: boolean;
+}
+
 export interface TemplateApi {
-  /** 'local' = saved in this browser only, 'rest' = saved in the backend database. */
-  readonly mode: 'local' | 'rest';
-  list(): Promise<TemplateSummary[]>;
-  get(id: string): Promise<TemplateRecord>;
-  create(payload: TemplatePayload): Promise<TemplateRecord>;
-  /** `version` must be the version you loaded; a different one means someone else saved first (409). */
-  update(id: string, payload: TemplatePayload, version: number): Promise<TemplateRecord>;
-  remove(id: string): Promise<void>;
+  /** All document types. Loaded once and then reused. */
+  documentTypes(): Promise<DocumentType[]>;
+  list(filter?: TemplateListFilter): Promise<TemplateSummary[]>;
+  get(id: string): Promise<TemplateDetail>;
+  /** Creates the template with a draft version 1. */
+  create(payload: CreateTemplatePayload): Promise<TemplateDetail>;
+  /** Changes the name, description, tags, type or status. Needs the template's rowVersion. */
+  update(id: string, payload: UpdateTemplatePayload): Promise<TemplateDetail>;
+  /** Deletes the template. Needs the template's rowVersion. */
+  remove(id: string, rowVersion: number): Promise<void>;
+  /** Saves the design to the draft (creates the draft if there is none). */
+  saveDraft(id: string, payload: SaveDraftPayload): Promise<TemplateDetail>;
+  /** Throws the draft away. Needs the draft's rowVersion. */
+  discardDraft(id: string, draftRowVersion: number): Promise<void>;
+  /** Makes the draft the version in use. Needs the draft's rowVersion. */
+  publish(id: string, draftRowVersion: number, changeNote?: string): Promise<TemplateDetail>;
+  /** All versions, newest first. */
+  versions(id: string): Promise<VersionSummary[]>;
+  /** One version with its design. */
+  version(id: string, versionNo: number): Promise<VersionRecord>;
 }
 
-const toSummary = (r: TemplateRecord): TemplateSummary => ({
-  id: r.id,
-  name: r.name,
-  description: r.description,
-  tags: r.tags,
-  version: r.version,
-  createdAt: r.createdAt,
-  updatedAt: r.updatedAt,
-});
+/** Shown when VITE_TEMPLATE_API_URL is not set. */
+const MISSING_URL_MESSAGE =
+  'The template server is not set up. Add VITE_TEMPLATE_API_URL to .env (for example http://localhost:8082) and restart npm run dev.';
 
-const byNewest = (a: TemplateSummary, b: TemplateSummary) => b.updatedAt.localeCompare(a.updatedAt);
-
-// ---------------------------------------------------------------------------
-// 1. Browser storage version (used until the backend exists)
-// ---------------------------------------------------------------------------
-
-const STORAGE_KEY = 'procuratio.pdfmeDemo.templates.v1';
-
-function createLocalTemplateApi(): TemplateApi {
-  const readAll = (): TemplateRecord[] => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const writeAll = (records: TemplateRecord[]) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    } catch {
-      throw new ApiError(
-        'Browser storage is full (large images or PDFs use a lot of space). Delete some templates or use Download JSON.',
-        507
-      );
-    }
-  };
-
-  // A short pause makes the browser version behave like a real network call
-  // (loading states, async errors), so screens are ready for the backend.
-  const delay = () => new Promise((resolve) => setTimeout(resolve, 120));
-
-  const findOr404 = (records: TemplateRecord[], id: string) => {
-    const record = records.find((r) => r.id === id);
-    if (!record) throw new ApiError('Template not found. It may have been deleted.', 404);
-    return record;
-  };
-
-  return {
-    mode: 'local',
-
-    async list() {
-      await delay();
-      return readAll().map(toSummary).sort(byNewest);
-    },
-
-    async get(id) {
-      await delay();
-      return structuredClone(findOr404(readAll(), id));
-    },
-
-    async create(payload) {
-      await delay();
-      const now = new Date().toISOString();
-      const record: TemplateRecord = {
-        ...structuredClone(payload),
-        id: crypto.randomUUID(),
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      };
-      writeAll([...readAll(), record]);
-      return structuredClone(record);
-    },
-
-    async update(id, payload, version) {
-      await delay();
-      const records = readAll();
-      const current = findOr404(records, id);
-      if (current.version !== version) {
-        throw new ApiError('This template was changed somewhere else. Reload it before saving.', 409);
-      }
-      const updated: TemplateRecord = {
-        ...current,
-        ...structuredClone(payload),
-        version: current.version + 1,
-        updatedAt: new Date().toISOString(),
-      };
-      writeAll(records.map((r) => (r.id === id ? updated : r)));
-      return structuredClone(updated);
-    },
-
-    async remove(id) {
-      await delay();
-      const records = readAll();
-      findOr404(records, id);
-      writeAll(records.filter((r) => r.id !== id));
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// 2. REST version (Spring Boot + PostgreSQL), switched on by VITE_TEMPLATE_API_URL
-// ---------------------------------------------------------------------------
-
-function createRestTemplateApi(baseUrl: string): TemplateApi {
-  const root = `${baseUrl.replace(/\/+$/, '')}/api/templates`;
+function createTemplateApi(baseUrl: string | undefined): TemplateApi {
+  const root = baseUrl ? `${baseUrl.replace(/\/+$/, '')}/api` : '';
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
+    if (!root) throw new ApiError(MISSING_URL_MESSAGE);
     let response: Response;
     try {
       response = await fetch(`${root}${path}`, {
@@ -147,7 +75,7 @@ function createRestTemplateApi(baseUrl: string): TemplateApi {
       throw new ApiError('Cannot reach the template server. Check that the backend is running.');
     }
     if (!response.ok) {
-      // The backend should reply with { "message": "..." } on errors (see API_CONTRACT.md).
+      // The backend replies with { "message": "..." } on errors (see API_CONTRACT.md).
       let message = `Request failed (${response.status})`;
       try {
         const body = await response.json();
@@ -160,20 +88,60 @@ function createRestTemplateApi(baseUrl: string): TemplateApi {
     return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
   }
 
+  const send = (method: string, body?: unknown): RequestInit => ({
+    method,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const tpl = (id: string) => `/templates/${encodeURIComponent(id)}`;
+
+  let documentTypesCache: Promise<DocumentType[]> | null = null;
+
   return {
-    mode: 'rest',
-    list: () => request<TemplateSummary[]>(''),
-    get: (id) => request<TemplateRecord>(`/${encodeURIComponent(id)}`),
-    create: (payload) => request<TemplateRecord>('', { method: 'POST', body: JSON.stringify(payload) }),
-    update: (id, payload, version) =>
-      request<TemplateRecord>(`/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        body: JSON.stringify({ ...payload, version }),
-      }),
-    remove: (id) => request<void>(`/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    documentTypes() {
+      if (!documentTypesCache) {
+        documentTypesCache = request<DocumentType[]>('/document-types').catch((e) => {
+          documentTypesCache = null; // try again next time
+          throw e;
+        });
+      }
+      return documentTypesCache;
+    },
+
+    list(filter = {}) {
+      const params = new URLSearchParams();
+      if (filter.documentTypeId) params.set('documentTypeId', filter.documentTypeId);
+      if (filter.tag) params.set('tag', filter.tag);
+      if (filter.ownerUserId) params.set('ownerUserId', filter.ownerUserId);
+      if (filter.includeArchived) params.set('includeArchived', 'true');
+      const query = params.toString();
+      return request<TemplateSummary[]>(`/templates${query ? `?${query}` : ''}`);
+    },
+
+    get: (id) => request<TemplateDetail>(tpl(id)),
+    create: (payload) => request<TemplateDetail>('/templates', send('POST', payload)),
+    update: (id, payload) => request<TemplateDetail>(tpl(id), send('PATCH', payload)),
+    remove: (id, rowVersion) => request<void>(`${tpl(id)}?rowVersion=${rowVersion}`, send('DELETE')),
+    saveDraft: (id, payload) => request<TemplateDetail>(`${tpl(id)}/draft`, send('PUT', payload)),
+    discardDraft: (id, draftRowVersion) =>
+      request<void>(`${tpl(id)}/draft?rowVersion=${draftRowVersion}`, send('DELETE')),
+    publish: (id, draftRowVersion, changeNote) =>
+      request<TemplateDetail>(`${tpl(id)}/publish`, send('POST', { draftRowVersion, changeNote: changeNote || null })),
+    versions: (id) => request<VersionSummary[]>(`${tpl(id)}/versions`),
+    version: (id, versionNo) => request<VersionRecord>(`${tpl(id)}/versions/${versionNo}`),
   };
 }
 
 const apiUrl = (import.meta.env.VITE_TEMPLATE_API_URL as string | undefined)?.trim();
 
-export const templateApi: TemplateApi = apiUrl ? createRestTemplateApi(apiUrl) : createLocalTemplateApi();
+export const templateApi: TemplateApi = createTemplateApi(apiUrl);
+
+/** The design to open for a template: the draft if there is one, otherwise the version in use. */
+export function openVersion(t: TemplateDetail): VersionRecord | null {
+  return t.draftVersion ?? t.currentVersion;
+}
+
+/** The user id used by the backend until login exists. */
+export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+/** A readable name for a user id. */
+export const userLabel = (id: string | null | undefined) => (!id ? '' : id === SYSTEM_USER_ID ? 'System' : id.slice(0, 8));

@@ -1,19 +1,39 @@
-// "My Workspace" tab: templates saved through the template API
-// (browser storage today, Spring Boot + PostgreSQL later).
+// "My Workspace" tab: templates saved through the template API (Spring Boot + PostgreSQL).
+// Each card shows the template's type, the version in use and any draft.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, Download, Eye, FileUp, Pencil, Plus, RefreshCw, Trash2, Type } from 'lucide-react';
 import { checkTemplate, type Template } from '@pdfme/common';
-import { templateApi } from '@/pdfme-demo/api/templateApi';
-import type { TemplateSummary } from '@/pdfme-demo/types';
+import { openVersion, templateApi, userLabel } from '@/pdfme-demo/api/templateApi';
+import { EMPTY_DETAILS, type TemplateDetail, type TemplateSummary } from '@/pdfme-demo/types';
 import { Thumbnail } from '@/pdfme-demo/components/Thumbnail';
-import { ConfirmDialog, DetailsDialog, type TemplateDetails } from '@/pdfme-demo/components/dialogs';
-import { DemoButton, Spinner, Tag } from '@/pdfme-demo/components/ui';
+import {
+  ConfirmDialog,
+  DetailsDialog,
+  type SubmittedDetails,
+  type TemplateDetails,
+} from '@/pdfme-demo/components/dialogs';
+import { DemoButton, Spinner, Tag, VersionBadge } from '@/pdfme-demo/components/ui';
 import type { ToastKind } from '@/pdfme-demo/components/useToast';
 import { downloadJson, pickFile, toFileName } from '@/pdfme-demo/lib/files';
 import { defaultInputs } from '@/pdfme-demo/lib/pdf';
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+const detailsOf = (t: TemplateSummary): TemplateDetails => ({
+  name: t.name,
+  description: t.description,
+  tags: t.tags,
+  documentTypeCode: t.documentType.code,
+});
+
+/** Loads a template and returns the design to use: the draft if there is one, otherwise the version in use. */
+async function loadDesign(id: string) {
+  const full = await templateApi.get(id);
+  const version = openVersion(full);
+  if (!version) throw new Error('This template has no versions.');
+  return { full, version };
+}
 
 type Dialog =
   | { type: 'rename'; item: TemplateSummary }
@@ -34,7 +54,8 @@ export function WorkspacePage({
   onOpen: (id: string, target: 'designer' | 'form-viewer') => void;
   onNew: () => void;
   onDeleted: (id: string) => void;
-  onRenamed: (id: string, version: number, details: TemplateDetails) => void;
+  /** Called after the name, description, tags or type changed. */
+  onRenamed: (record: TemplateDetail) => void;
   notify: (text: string, kind?: ToastKind) => void;
 }) {
   const [items, setItems] = useState<TemplateSummary[] | null>(null);
@@ -68,13 +89,14 @@ export function WorkspacePage({
 
   const duplicate = (item: TemplateSummary) =>
     runAction(item.id, async () => {
-      const full = await templateApi.get(item.id);
+      const { full, version } = await loadDesign(item.id);
       await templateApi.create({
+        documentTypeId: full.documentType.id,
         name: `${full.name} (copy)`,
         description: full.description,
         tags: full.tags,
-        template: full.template,
-        sampleInputs: full.sampleInputs,
+        template: version.template,
+        sampleInputs: version.sampleInputs,
       });
       notify(`Duplicated "${full.name}".`);
       await load();
@@ -82,19 +104,20 @@ export function WorkspacePage({
 
   const download = (item: TemplateSummary) =>
     runAction(item.id, async () => {
-      const full = await templateApi.get(item.id);
-      downloadJson(full.template, toFileName(full.name, 'json'));
+      const { full, version } = await loadDesign(item.id);
+      downloadJson(version.template, toFileName(full.name, 'json'));
     });
 
-  async function rename(item: TemplateSummary, details: TemplateDetails) {
+  async function rename(item: TemplateSummary, details: SubmittedDetails) {
     await runAction(item.id, async () => {
-      const full = await templateApi.get(item.id);
-      const saved = await templateApi.update(
-        item.id,
-        { ...details, template: full.template, sampleInputs: full.sampleInputs },
-        full.version
-      );
-      onRenamed(saved.id, saved.version, details);
+      const saved = await templateApi.update(item.id, {
+        rowVersion: item.rowVersion,
+        name: details.name,
+        description: details.description,
+        tags: details.tags,
+        documentTypeId: details.documentTypeId,
+      });
+      onRenamed(saved);
       notify('Details updated.');
       setDialog(null);
       await load();
@@ -103,7 +126,7 @@ export function WorkspacePage({
 
   async function remove(item: TemplateSummary) {
     await runAction(item.id, async () => {
-      await templateApi.remove(item.id);
+      await templateApi.remove(item.id, item.rowVersion);
       onDeleted(item.id);
       notify(`Deleted "${item.name}".`);
       setDialog(null);
@@ -123,9 +146,16 @@ export function WorkspacePage({
     }
   }
 
-  async function finishImport(template: Template, details: TemplateDetails) {
+  async function finishImport(template: Template, details: SubmittedDetails) {
     await runAction('import', async () => {
-      await templateApi.create({ ...details, template, sampleInputs: defaultInputs(template) });
+      await templateApi.create({
+        documentTypeId: details.documentTypeId,
+        name: details.name,
+        description: details.description,
+        tags: details.tags,
+        template,
+        sampleInputs: defaultInputs(template),
+      });
       notify(`Imported "${details.name}".`);
       setDialog(null);
       await load();
@@ -176,10 +206,10 @@ export function WorkspacePage({
               <article key={item.id} className="flex flex-col rounded-xl border border-slate-200 bg-white p-3">
                 <button onClick={() => onOpen(item.id, 'designer')} title="Open in Designer" className="block">
                   <Thumbnail
-                    cacheKey={`workspace:${item.id}:v${item.version}`}
+                    cacheKey={`workspace:${item.id}:${(item.draftVersion ?? item.currentVersion)?.contentHash ?? ''}`}
                     load={async () => {
-                      const full = await templateApi.get(item.id);
-                      return { template: full.template, inputs: full.sampleInputs };
+                      const { version } = await loadDesign(item.id);
+                      return { template: version.template, inputs: version.sampleInputs };
                     }}
                   />
                 </button>
@@ -187,8 +217,15 @@ export function WorkspacePage({
                   {item.name}
                 </h3>
                 {item.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.description}</p>}
+                <div className="mt-2 flex flex-wrap items-center gap-1">
+                  <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
+                    {item.documentType.name}
+                  </span>
+                  {item.currentVersion && <VersionBadge status="PUBLISHED" versionNo={item.currentVersion.versionNo} />}
+                  {item.draftVersion && <VersionBadge status="DRAFT" versionNo={item.draftVersion.versionNo} />}
+                </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  Updated {new Date(item.updatedAt).toLocaleString('en-GB')} · v{item.version}
+                  Updated {new Date(item.updatedAt).toLocaleString('en-GB')} · Owner: {userLabel(item.ownerUserId)}
                 </p>
                 {item.tags.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
@@ -206,7 +243,7 @@ export function WorkspacePage({
                   </DemoButton>
                 </div>
                 <div className="mt-1 flex justify-between gap-1">
-                  <DemoButton variant="ghost" disabled={busy} onClick={() => setDialog({ type: 'rename', item })} title="Rename">
+                  <DemoButton variant="ghost" disabled={busy} onClick={() => setDialog({ type: 'rename', item })} title="Edit details">
                     <Type className="h-3.5 w-3.5" />
                   </DemoButton>
                   <DemoButton variant="ghost" disabled={busy} onClick={() => duplicate(item)} title="Duplicate">
@@ -233,9 +270,9 @@ export function WorkspacePage({
 
       <DetailsDialog
         open={dialog?.type === 'rename'}
-        title="Rename template"
+        title="Edit details"
         submitLabel="Save"
-        initial={dialog?.type === 'rename' ? dialog.item : { name: '', description: '', tags: [] }}
+        initial={dialog?.type === 'rename' ? detailsOf(dialog.item) : EMPTY_DETAILS}
         busy={!!busyId}
         onSubmit={(details) => dialog?.type === 'rename' && rename(dialog.item, details)}
         onClose={() => setDialog(null)}
@@ -244,7 +281,7 @@ export function WorkspacePage({
         open={dialog?.type === 'import'}
         title="Import template"
         submitLabel="Import"
-        initial={{ name: dialog?.type === 'import' ? dialog.fileName : '', description: '', tags: [] }}
+        initial={{ ...EMPTY_DETAILS, name: dialog?.type === 'import' ? dialog.fileName : '' }}
         busy={!!busyId}
         onSubmit={(details) => dialog?.type === 'import' && finishImport(dialog.template, details)}
         onClose={() => setDialog(null)}
@@ -254,7 +291,7 @@ export function WorkspacePage({
         title="Delete template?"
         message={
           dialog?.type === 'delete'
-            ? `"${dialog.item.name}" will be permanently deleted. This cannot be undone.`
+            ? `"${dialog.item.name}" and all its versions will be deleted.`
             : ''
         }
         confirmLabel="Delete"

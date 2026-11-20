@@ -5,7 +5,7 @@ import { FileText, Pencil, RotateCcw } from 'lucide-react';
 import { Form, Viewer } from '@pdfme/ui';
 import { demoPlugins, UI_LANGUAGES, type UiLanguage } from '@/pdfme-demo/plugins';
 import type { Inputs, OpenDocument } from '@/pdfme-demo/types';
-import { DemoButton, Spinner, Toolbar, ToolbarGroup } from '@/pdfme-demo/components/ui';
+import { DemoButton, Spinner, Toolbar, ToolbarGroup, VersionBadge } from '@/pdfme-demo/components/ui';
 import type { ToastKind } from '@/pdfme-demo/components/useToast';
 import { JsonDialog, PdfDialog } from '@/pdfme-demo/components/dialogs';
 import { toFileName } from '@/pdfme-demo/lib/files';
@@ -142,7 +142,13 @@ export function FormViewerPage({
       </Toolbar>
 
       <p className="text-xs text-slate-500">
-        <span className="font-semibold text-slate-700">{doc.name}</span> ·{' '}
+        <span className="font-semibold text-slate-700">{doc.name}</span>{' '}
+        {doc.source.kind === 'workspace' && (
+          <>
+            <VersionBadge status={doc.source.versionStatus} versionNo={doc.source.versionNo} />{' '}
+          </>
+        )}
+        ·{' '}
         {mode === 'form'
           ? 'Click the highlighted fields to fill them in. Fixed parts of the design cannot be changed here.'
           : 'Read-only preview of the filled-in document.'}

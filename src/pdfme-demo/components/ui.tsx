@@ -1,4 +1,4 @@
-// Small UI building blocks used across the pdfme demo tabs.
+// Small UI building blocks used across the Template Studio tabs.
 
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Info, Loader2 } from 'lucide-react';
@@ -53,6 +53,21 @@ export function Tag({ children }: { children: ReactNode }) {
   return (
     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
       {children}
+    </span>
+  );
+}
+
+/** Coloured label for a version, for example "Draft v2" or "Published v1". */
+export function VersionBadge({ status, versionNo }: { status: 'DRAFT' | 'PUBLISHED' | 'RETIRED'; versionNo: number }) {
+  const styles = {
+    DRAFT: 'bg-amber-50 text-amber-700 ring-amber-200',
+    PUBLISHED: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    RETIRED: 'bg-slate-100 text-slate-500 ring-slate-200',
+  }[status];
+  const label = { DRAFT: 'Draft', PUBLISHED: 'Published', RETIRED: 'Retired' }[status];
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${styles}`}>
+      {label} v{versionNo}
     </span>
   );
 }

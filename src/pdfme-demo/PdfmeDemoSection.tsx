@@ -4,18 +4,25 @@
 // The current tab is controlled by App (props `tab` and `onTabChange`), so the sidebar
 // and the tab bar on this page always show the same tab.
 // This component owns the "open document" (the template being edited) and all saving.
-// Saving goes through `templateApi` (browser storage now, Spring Boot REST API later).
+// Saving goes through `templateApi` (Spring Boot REST API). Save writes the draft;
+// Publish makes the draft the version in use.
 
 import { useEffect, useState } from 'react';
 import { Eye, FolderOpen, LayoutGrid, Pencil, Plus } from 'lucide-react';
 import type { Template } from '@pdfme/common';
-import { templateApi } from '@/pdfme-demo/api/templateApi';
-import type { DemoTab, DocSource, GalleryItem, Inputs, OpenDocument, TemplatePayload } from '@/pdfme-demo/types';
+import { openVersion, templateApi } from '@/pdfme-demo/api/templateApi';
+import { EMPTY_DETAILS, type DemoTab, type DocSource, type GalleryItem, type Inputs, type OpenDocument, type TemplateDetail } from '@/pdfme-demo/types';
 import { TemplatesPage } from '@/pdfme-demo/pages/TemplatesPage';
 import { WorkspacePage } from '@/pdfme-demo/pages/WorkspacePage';
 import { DesignerPage } from '@/pdfme-demo/pages/DesignerPage';
 import { FormViewerPage } from '@/pdfme-demo/pages/FormViewerPage';
-import { ConfirmDialog, DetailsDialog, type TemplateDetails } from '@/pdfme-demo/components/dialogs';
+import {
+  ConfirmDialog,
+  DetailsDialog,
+  PublishDialog,
+  type SubmittedDetails,
+  type TemplateDetails,
+} from '@/pdfme-demo/components/dialogs';
 import { DemoButton, ToastView } from '@/pdfme-demo/components/ui';
 import { useToast } from '@/pdfme-demo/components/useToast';
 
@@ -29,6 +36,37 @@ const TABS: { key: DemoTab; label: string; icon: typeof Eye }[] = [
 const BLANK_TEMPLATE: Template = { basePdf: { width: 210, height: 297, padding: [0, 0, 0, 0] }, schemas: [[]] };
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Name, description, tags and type of a saved template. */
+const detailsOf = (t: TemplateDetail): TemplateDetails => ({
+  name: t.name,
+  description: t.description,
+  tags: t.tags,
+  documentTypeCode: t.documentType.code,
+});
+
+/** Where a saved template came from, and which version is open (the draft if there is one). */
+function workspaceSource(t: TemplateDetail): DocSource {
+  const open = openVersion(t);
+  if (!open) throw new Error('This template has no versions.');
+  return {
+    kind: 'workspace',
+    id: t.id,
+    rowVersion: t.rowVersion,
+    draftRowVersion: t.draftVersion?.rowVersion ?? null,
+    versionNo: open.versionNo,
+    versionStatus: open.status,
+    publishedVersionNo: t.currentVersion?.versionNo ?? null,
+    documentTypeId: t.documentType.id,
+  };
+}
+
+/** Finds the id of a document type from its code, for example GENERAL_LETTER. */
+async function documentTypeId(code: string): Promise<string> {
+  const type = (await templateApi.documentTypes()).find((t) => t.code === code);
+  if (!type) throw new Error(`Unknown document type "${code}".`);
+  return type.id;
+}
 
 function makeDocument(
   details: TemplateDetails,
@@ -65,6 +103,7 @@ export function PdfmeDemoSection({
   const [doc, setDoc] = useState<OpenDocument | null>(null);
   const [saving, setSaving] = useState(false);
   const [detailsDialog, setDetailsDialog] = useState<DetailsMode>(null);
+  const [publishDialog, setPublishDialog] = useState<{ template: Template } | null>(null);
   const [pendingOpen, setPendingOpen] = useState<(() => void) | null>(null);
   const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
   const [copyingId, setCopyingId] = useState<string | null>(null);
@@ -93,7 +132,13 @@ export function PdfmeDemoSection({
 
   function openGallery(item: GalleryItem, target: 'designer' | 'form-viewer') {
     guardUnsaved(() => {
-      setDoc(makeDocument(item, { kind: 'gallery', galleryId: item.id }, item.template, item.sampleInputs));
+      const details: TemplateDetails = {
+        name: item.name,
+        description: item.description,
+        tags: item.tags,
+        documentTypeCode: item.documentTypeCode,
+      };
+      setDoc(makeDocument(details, { kind: 'gallery', galleryId: item.id }, item.template, item.sampleInputs));
       setTab(target);
     });
   }
@@ -102,9 +147,9 @@ export function PdfmeDemoSection({
     guardUnsaved(async () => {
       try {
         const record = await templateApi.get(id);
-        setDoc(
-          makeDocument(record, { kind: 'workspace', id: record.id, version: record.version }, record.template, record.sampleInputs)
-        );
+        const version = openVersion(record);
+        if (!version) throw new Error('This template has no versions.');
+        setDoc(makeDocument(detailsOf(record), workspaceSource(record), version.template, version.sampleInputs));
         setTab(target);
       } catch (e) {
         notify(errorText(e), 'error');
@@ -115,7 +160,12 @@ export function PdfmeDemoSection({
   function newTemplate() {
     guardUnsaved(() => {
       setDoc(
-        makeDocument({ name: 'Untitled template', description: '', tags: [] }, { kind: 'new' }, BLANK_TEMPLATE, [{}])
+        makeDocument(
+          { name: 'Untitled template', description: '', tags: [], documentTypeCode: 'OTHER' },
+          { kind: 'new' },
+          BLANK_TEMPLATE,
+          [{}]
+        )
       );
       setTab('designer');
     });
@@ -125,6 +175,7 @@ export function PdfmeDemoSection({
     setCopyingId(item.id);
     try {
       await templateApi.create({
+        documentTypeId: await documentTypeId(item.documentTypeCode),
         name: item.name,
         description: item.description,
         tags: item.tags,
@@ -169,16 +220,15 @@ export function PdfmeDemoSection({
 
   // ---------- Saving ----------
 
-  function markSaved(template: Template, record: { id: string; version: number } & TemplateDetails) {
+  /** Updates the open document after the backend saved it. */
+  function markSaved(template: Template, record: TemplateDetail) {
     setDoc((d) =>
       d
         ? {
             ...d,
-            name: record.name,
-            description: record.description,
-            tags: record.tags,
+            ...detailsOf(record),
             template,
-            source: { kind: 'workspace', id: record.id, version: record.version },
+            source: workspaceSource(record),
             baseline: structuredClone({ template, inputs: d.inputs }),
             dirty: false,
           }
@@ -187,25 +237,29 @@ export function PdfmeDemoSection({
     setWorkspaceRefresh((n) => n + 1);
   }
 
+  /** Saves the design to the template's draft. Returns the saved template. */
+  async function saveDraft(template: Template): Promise<TemplateDetail> {
+    if (!doc || doc.source.kind !== 'workspace') throw new Error('Save the template first.');
+    const record = await templateApi.saveDraft(doc.source.id, {
+      template,
+      sampleInputs: doc.inputs,
+      draftRowVersion: doc.source.draftRowVersion,
+    });
+    markSaved(template, record);
+    return record;
+  }
+
   async function save(template: Template) {
     if (!doc) return;
     if (doc.source.kind !== 'workspace') {
-      // Not saved before: ask for a name first.
+      // Not saved before: ask for a name and type first.
       setDetailsDialog({ mode: 'save', template });
       return;
     }
     setSaving(true);
     try {
-      const payload: TemplatePayload = {
-        name: doc.name,
-        description: doc.description,
-        tags: doc.tags,
-        template,
-        sampleInputs: doc.inputs,
-      };
-      const record = await templateApi.update(doc.source.id, payload, doc.source.version);
-      markSaved(template, record);
-      notify(`Saved "${record.name}".`);
+      const record = await saveDraft(template);
+      notify(`Saved "${record.name}" as draft version ${record.draftVersion?.versionNo ?? ''}.`);
     } catch (e) {
       notify(errorText(e), 'error');
     } finally {
@@ -213,14 +267,44 @@ export function PdfmeDemoSection({
     }
   }
 
-  async function createFromDialog(details: TemplateDetails) {
+  async function createFromDialog(details: SubmittedDetails) {
     if (!doc || !detailsDialog) return;
     setSaving(true);
     try {
-      const record = await templateApi.create({ ...details, template: detailsDialog.template, sampleInputs: doc.inputs });
+      const record = await templateApi.create({
+        documentTypeId: details.documentTypeId,
+        name: details.name,
+        description: details.description,
+        tags: details.tags,
+        template: detailsDialog.template,
+        sampleInputs: doc.inputs,
+      });
       markSaved(detailsDialog.template, record);
       setDetailsDialog(null);
-      notify(`Saved "${record.name}" to My Workspace.`);
+      notify(`Saved "${record.name}" to My Workspace as a draft.`);
+    } catch (e) {
+      notify(errorText(e), 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Saves unsaved changes (if any), then publishes the draft. */
+  async function publish(changeNote: string) {
+    if (!doc || doc.source.kind !== 'workspace' || !publishDialog) return;
+    const { template } = publishDialog;
+    setSaving(true);
+    try {
+      let draftRowVersion = doc.source.draftRowVersion;
+      if (doc.dirty) {
+        const saved = await saveDraft(template);
+        draftRowVersion = saved.draftVersion?.rowVersion ?? null;
+      }
+      if (draftRowVersion === null) throw new Error('There is no draft to publish.');
+      const record = await templateApi.publish(doc.source.id, draftRowVersion, changeNote);
+      markSaved(template, record);
+      setPublishDialog(null);
+      notify(`Published version ${record.currentVersion?.versionNo ?? ''} of "${record.name}".`);
     } catch (e) {
       notify(errorText(e), 'error');
     } finally {
@@ -298,10 +382,14 @@ export function PdfmeDemoSection({
                 d && d.source.kind === 'workspace' && d.source.id === id ? { ...d, source: { kind: 'new' }, dirty: true } : d
               )
             }
-            onRenamed={(id, version, details) =>
+            onRenamed={(record) =>
               setDoc((d) =>
-                d && d.source.kind === 'workspace' && d.source.id === id
-                  ? { ...d, ...details, source: { kind: 'workspace', id, version } }
+                d && d.source.kind === 'workspace' && d.source.id === record.id
+                  ? {
+                      ...d,
+                      ...detailsOf(record),
+                      source: { ...d.source, rowVersion: record.rowVersion, documentTypeId: record.documentType.id },
+                    }
                   : d
               )
             }
@@ -318,6 +406,7 @@ export function PdfmeDemoSection({
               onSave={save}
               onSaveAs={(template) => setDetailsDialog({ mode: 'saveAs', template })}
               onReset={resetDocument}
+              onPublish={(template) => setPublishDialog({ template })}
               onOpenFormViewer={(template) => {
                 setDoc((d) => (d ? { ...d, template } : d));
                 setTab('form-viewer');
@@ -345,12 +434,29 @@ export function PdfmeDemoSection({
                 name: detailsDialog?.mode === 'saveAs' && doc.source.kind === 'workspace' ? `${doc.name} (copy)` : doc.name,
                 description: doc.description,
                 tags: doc.tags,
+                documentTypeCode: doc.documentTypeCode,
               }
-            : { name: '', description: '', tags: [] }
+            : EMPTY_DETAILS
         }
         busy={saving}
         onSubmit={createFromDialog}
         onClose={() => setDetailsDialog(null)}
+      />
+      <PublishDialog
+        open={publishDialog !== null}
+        name={doc?.name ?? ''}
+        versionNo={
+          doc?.source.kind === 'workspace'
+            ? doc.source.versionStatus === 'DRAFT'
+              ? doc.source.versionNo
+              : doc.source.versionNo + 1
+            : 1
+        }
+        replacesVersionNo={doc?.source.kind === 'workspace' ? doc.source.publishedVersionNo : null}
+        willSaveFirst={!!doc?.dirty}
+        busy={saving}
+        onPublish={publish}
+        onClose={() => setPublishDialog(null)}
       />
       <ConfirmDialog
         open={pendingOpen !== null}
