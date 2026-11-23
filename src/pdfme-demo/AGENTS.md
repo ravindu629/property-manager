@@ -24,6 +24,9 @@ components/            Dialogs, buttons, toasts used only here
   The Designer opens the draft if there is one, otherwise the version in use (`openVersion`).
 - Send back `rowVersion` (template) and `draftRowVersion` (draft) as loaded. A 409 means someone
   else saved first; show the backend's message.
+- History (My Workspace card) lists all versions. "View" opens a version as a read-only copy
+  (`DocSource` kind `version`); saving it creates a new template, never changes the old version.
+- Discard draft is only allowed when a published version exists (the backend refuses otherwise).
 - Every saved template needs a document type. Library items name theirs with `documentTypeCode`.
 - If the API contract changes, update `API_CONTRACT.md` and the backend in the same piece of work.
 

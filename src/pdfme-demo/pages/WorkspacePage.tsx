@@ -2,7 +2,7 @@
 // Each card shows the template's type, the version in use and any draft.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Download, Eye, FileUp, Pencil, Plus, RefreshCw, Trash2, Type } from 'lucide-react';
+import { Copy, Download, Eye, FileUp, History, Pencil, Plus, RefreshCw, Trash2, Type } from 'lucide-react';
 import { checkTemplate, type Template } from '@pdfme/common';
 import { openVersion, templateApi, userLabel } from '@/pdfme-demo/api/templateApi';
 import { EMPTY_DETAILS, type TemplateDetail, type TemplateSummary } from '@/pdfme-demo/types';
@@ -13,6 +13,7 @@ import {
   type SubmittedDetails,
   type TemplateDetails,
 } from '@/pdfme-demo/components/dialogs';
+import { HistoryDialog } from '@/pdfme-demo/components/HistoryDialog';
 import { DemoButton, Spinner, Tag, VersionBadge } from '@/pdfme-demo/components/ui';
 import type { ToastKind } from '@/pdfme-demo/components/useToast';
 import { downloadJson, pickFile, toFileName } from '@/pdfme-demo/lib/files';
@@ -38,12 +39,14 @@ async function loadDesign(id: string) {
 type Dialog =
   | { type: 'rename'; item: TemplateSummary }
   | { type: 'delete'; item: TemplateSummary }
+  | { type: 'history'; item: TemplateSummary }
   | { type: 'import'; template: Template; fileName: string }
   | null;
 
 export function WorkspacePage({
   refreshKey,
   onOpen,
+  onOpenVersion,
   onNew,
   onDeleted,
   onRenamed,
@@ -52,6 +55,8 @@ export function WorkspacePage({
   /** Changes when the template list should be reloaded (for example after a save). */
   refreshKey: number;
   onOpen: (id: string, target: 'designer' | 'form-viewer') => void;
+  /** Opens one version from History as a read-only copy. */
+  onOpenVersion: (id: string, versionNo: number) => void;
   onNew: () => void;
   onDeleted: (id: string) => void;
   /** Called after the name, description, tags or type changed. */
@@ -246,6 +251,9 @@ export function WorkspacePage({
                   <DemoButton variant="ghost" disabled={busy} onClick={() => setDialog({ type: 'rename', item })} title="Edit details">
                     <Type className="h-3.5 w-3.5" />
                   </DemoButton>
+                  <DemoButton variant="ghost" disabled={busy} onClick={() => setDialog({ type: 'history', item })} title="History">
+                    <History className="h-3.5 w-3.5" />
+                  </DemoButton>
                   <DemoButton variant="ghost" disabled={busy} onClick={() => duplicate(item)} title="Duplicate">
                     <Copy className="h-3.5 w-3.5" />
                   </DemoButton>
@@ -285,6 +293,15 @@ export function WorkspacePage({
         busy={!!busyId}
         onSubmit={(details) => dialog?.type === 'import' && finishImport(dialog.template, details)}
         onClose={() => setDialog(null)}
+      />
+      <HistoryDialog
+        template={dialog?.type === 'history' ? dialog.item : null}
+        onView={(id, versionNo) => {
+          setDialog(null);
+          onOpenVersion(id, versionNo);
+        }}
+        onClose={() => setDialog(null)}
+        notify={notify}
       />
       <ConfirmDialog
         open={dialog?.type === 'delete'}

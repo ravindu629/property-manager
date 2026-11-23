@@ -104,6 +104,7 @@ export function PdfmeDemoSection({
   const [saving, setSaving] = useState(false);
   const [detailsDialog, setDetailsDialog] = useState<DetailsMode>(null);
   const [publishDialog, setPublishDialog] = useState<{ template: Template } | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [pendingOpen, setPendingOpen] = useState<(() => void) | null>(null);
   const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
   const [copyingId, setCopyingId] = useState<string | null>(null);
@@ -220,6 +221,47 @@ export function PdfmeDemoSection({
 
   // ---------- Saving ----------
 
+  /** Opens one version from the History dialog as a read-only copy. */
+  function openOldVersion(id: string, versionNo: number, target: 'designer' | 'form-viewer' = 'form-viewer') {
+    guardUnsaved(async () => {
+      try {
+        const [record, version] = await Promise.all([templateApi.get(id), templateApi.version(id, versionNo)]);
+        setDoc(
+          makeDocument(
+            detailsOf(record),
+            { kind: 'version', id, versionNo, versionStatus: version.status },
+            version.template,
+            version.sampleInputs
+          )
+        );
+        setTab(target);
+      } catch (e) {
+        notify(errorText(e), 'error');
+      }
+    });
+  }
+
+  /** Throws the draft away and opens the version in use again. */
+  async function discardDraft() {
+    if (!doc || doc.source.kind !== 'workspace' || doc.source.draftRowVersion === null) return;
+    const { id, draftRowVersion } = doc.source;
+    setSaving(true);
+    try {
+      await templateApi.discardDraft(id, draftRowVersion);
+      const record = await templateApi.get(id);
+      const version = openVersion(record);
+      if (!version) throw new Error('This template has no versions.');
+      setDoc(makeDocument(detailsOf(record), workspaceSource(record), version.template, version.sampleInputs));
+      setWorkspaceRefresh((n) => n + 1);
+      setDiscardOpen(false);
+      notify(`Draft discarded. Back to version ${version.versionNo}.`, 'info');
+    } catch (e) {
+      notify(errorText(e), 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   /** Updates the open document after the backend saved it. */
   function markSaved(template: Template, record: TemplateDetail) {
     setDoc((d) =>
@@ -252,7 +294,7 @@ export function PdfmeDemoSection({
   async function save(template: Template) {
     if (!doc) return;
     if (doc.source.kind !== 'workspace') {
-      // Not saved before: ask for a name and type first.
+      // Not saved before (or an old version): ask for a name and type first.
       setDetailsDialog({ mode: 'save', template });
       return;
     }
@@ -375,6 +417,7 @@ export function PdfmeDemoSection({
           <WorkspacePage
             refreshKey={workspaceRefresh}
             onOpen={openWorkspace}
+            onOpenVersion={openOldVersion}
             onNew={newTemplate}
             notify={notify}
             onDeleted={(id) =>
@@ -407,6 +450,7 @@ export function PdfmeDemoSection({
               onSaveAs={(template) => setDetailsDialog({ mode: 'saveAs', template })}
               onReset={resetDocument}
               onPublish={(template) => setPublishDialog({ template })}
+              onDiscardDraft={() => setDiscardOpen(true)}
               onOpenFormViewer={(template) => {
                 setDoc((d) => (d ? { ...d, template } : d));
                 setTab('form-viewer');
@@ -426,12 +470,21 @@ export function PdfmeDemoSection({
 
       <DetailsDialog
         open={detailsDialog !== null}
-        title={detailsDialog?.mode === 'saveAs' ? 'Save as a new template' : 'Save to My Workspace'}
+        title={
+          detailsDialog?.mode === 'saveAs' || doc?.source.kind === 'version'
+            ? 'Save as a new template'
+            : 'Save to My Workspace'
+        }
         submitLabel="Save"
         initial={
           doc
             ? {
-                name: detailsDialog?.mode === 'saveAs' && doc.source.kind === 'workspace' ? `${doc.name} (copy)` : doc.name,
+                name:
+                  doc.source.kind === 'version'
+                    ? `${doc.name} (v${doc.source.versionNo} copy)`
+                    : detailsDialog?.mode === 'saveAs' && doc.source.kind === 'workspace'
+                      ? `${doc.name} (copy)`
+                      : doc.name,
                 description: doc.description,
                 tags: doc.tags,
                 documentTypeCode: doc.documentTypeCode,
@@ -457,6 +510,20 @@ export function PdfmeDemoSection({
         busy={saving}
         onPublish={publish}
         onClose={() => setPublishDialog(null)}
+      />
+      <ConfirmDialog
+        open={discardOpen}
+        title="Discard draft?"
+        message={
+          doc?.source.kind === 'workspace'
+            ? `Draft version ${doc.source.versionNo} of "${doc.name}" will be deleted, with any unsaved changes. ` +
+              `The template goes back to version ${doc.source.publishedVersionNo ?? ''}. This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Discard draft"
+        busy={saving}
+        onConfirm={discardDraft}
+        onClose={() => setDiscardOpen(false)}
       />
       <ConfirmDialog
         open={pendingOpen !== null}

@@ -1,7 +1,7 @@
 // "Designer" tab: pdfme's drag-and-drop template designer with a playground-style toolbar.
 
 import { useEffect, useRef, useState } from 'react';
-import { Braces, Copy, Download, Eye, FileText, FileUp, RotateCcw, Save, Send } from 'lucide-react';
+import { Braces, Copy, Download, Eye, FileText, FileUp, RotateCcw, Save, Send, Trash2 } from 'lucide-react';
 import { Designer } from '@pdfme/ui';
 import { checkTemplate, type Template } from '@pdfme/common';
 import { demoPlugins, UI_LANGUAGES, type UiLanguage } from '@/pdfme-demo/plugins';
@@ -33,6 +33,7 @@ export function DesignerPage({
   onSaveAs,
   onReset,
   onPublish,
+  onDiscardDraft,
   onOpenFormViewer,
   notify,
 }: {
@@ -49,6 +50,8 @@ export function DesignerPage({
   onReset: () => void;
   /** Publishes the draft (saving unsaved changes first). */
   onPublish: (template: Template) => void;
+  /** Asks to throw the draft away and go back to the version in use. */
+  onDiscardDraft: () => void;
   onOpenFormViewer: (template: Template) => void;
   notify: (text: string, kind?: ToastKind) => void;
 }) {
@@ -145,14 +148,20 @@ export function DesignerPage({
   const sourceLabel =
     source.kind === 'workspace'
       ? 'My Workspace'
-      : source.kind === 'gallery'
-        ? 'Example template (not saved yet)'
-        : 'New template (not saved yet)';
+      : source.kind === 'version'
+        ? 'Old version, read-only copy (Save makes a new template)'
+        : source.kind === 'gallery'
+          ? 'Example template (not saved yet)'
+          : 'New template (not saved yet)';
+  const isDraft = source.kind === 'workspace' && source.versionStatus === 'DRAFT';
+  const canDiscard = isDraft && source.publishedVersionNo !== null;
   // Something to publish: a saved draft, or unsaved changes on top of the published version.
   const canPublish = source.kind === 'workspace' && (source.versionStatus === 'DRAFT' || doc.dirty);
   const publishTitle =
-    source.kind !== 'workspace'
-      ? 'Save the template first'
+    source.kind === 'version'
+      ? 'Old versions cannot be published again. Use Save as new template.'
+      : source.kind !== 'workspace'
+        ? 'Save the template first'
       : canPublish
         ? 'Make this version the one in use'
         : 'No changes to publish';
@@ -201,7 +210,7 @@ export function DesignerPage({
               />
             )}
             {saving ? <Spinner className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
-            {doc.source.kind === 'workspace' ? 'Save' : 'Save to Workspace'}
+            {source.kind === 'workspace' ? 'Save' : source.kind === 'version' ? 'Save as new template' : 'Save to Workspace'}
           </DemoButton>
           <DemoButton disabled={saving} onClick={() => onSaveAs(current())}>
             <Copy className="h-3.5 w-3.5" /> Save As
@@ -212,6 +221,20 @@ export function DesignerPage({
           <DemoButton disabled={saving || !canPublish} title={publishTitle} onClick={() => onPublish(current())}>
             <Send className="h-3.5 w-3.5" /> Publish
           </DemoButton>
+          {isDraft && (
+            <DemoButton
+              variant="danger"
+              disabled={saving || !canDiscard}
+              title={
+                canDiscard
+                  ? 'Delete this draft and go back to the version in use'
+                  : 'Never published. Delete the template in My Workspace instead.'
+              }
+              onClick={onDiscardDraft}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Discard draft
+            </DemoButton>
+          )}
         </ToolbarGroup>
         <ToolbarGroup label="Preview">
           <DemoButton onClick={() => onOpenFormViewer(current())}>
@@ -230,7 +253,9 @@ export function DesignerPage({
 
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500">
         <span className="font-semibold text-slate-700">{doc.name}</span>
-        {source.kind === 'workspace' && <VersionBadge status={source.versionStatus} versionNo={source.versionNo} />}
+        {(source.kind === 'workspace' || source.kind === 'version') && (
+          <VersionBadge status={source.versionStatus} versionNo={source.versionNo} />
+        )}
         <span>· {sourceLabel}</span>
         {source.kind === 'workspace' && source.versionStatus === 'DRAFT' && (
           <span>

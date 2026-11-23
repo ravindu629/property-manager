@@ -143,11 +143,12 @@ export function FormViewerPage({
 
       <p className="text-xs text-slate-500">
         <span className="font-semibold text-slate-700">{doc.name}</span>{' '}
-        {doc.source.kind === 'workspace' && (
+        {(doc.source.kind === 'workspace' || doc.source.kind === 'version') && (
           <>
             <VersionBadge status={doc.source.versionStatus} versionNo={doc.source.versionNo} />{' '}
           </>
         )}
+        {doc.source.kind === 'version' && <span>· old version, read-only copy </span>}
         ·{' '}
         {mode === 'form'
           ? 'Click the highlighted fields to fill them in. Fixed parts of the design cannot be changed here.'

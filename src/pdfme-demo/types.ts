@@ -139,6 +139,13 @@ export type DocSource =
       publishedVersionNo: number | null;
       documentTypeId: string;
     }
+  | {
+      /** An old version opened from History, as a read-only copy. Saving makes a new template. */
+      kind: 'version';
+      id: string;
+      versionNo: number;
+      versionStatus: VersionStatus;
+    }
   | { kind: 'new' };
 
 /** The template currently open in the Designer and Form/Viewer tabs. */
