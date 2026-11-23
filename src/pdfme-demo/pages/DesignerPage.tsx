@@ -1,12 +1,12 @@
 // "Designer" tab: pdfme's drag-and-drop template designer with a playground-style toolbar.
 
 import { useEffect, useRef, useState } from 'react';
-import { Braces, Copy, Download, Eye, FileText, FileUp, RotateCcw, Save } from 'lucide-react';
+import { Braces, Copy, Download, Eye, FileText, FileUp, RotateCcw, Save, Send } from 'lucide-react';
 import { Designer } from '@pdfme/ui';
 import { checkTemplate, type Template } from '@pdfme/common';
 import { demoPlugins, UI_LANGUAGES, type UiLanguage } from '@/pdfme-demo/plugins';
 import type { OpenDocument } from '@/pdfme-demo/types';
-import { DemoButton, Spinner, Toolbar, ToolbarGroup } from '@/pdfme-demo/components/ui';
+import { DemoButton, Spinner, Toolbar, ToolbarGroup, VersionBadge } from '@/pdfme-demo/components/ui';
 import type { ToastKind } from '@/pdfme-demo/components/useToast';
 import { JsonDialog, PdfDialog } from '@/pdfme-demo/components/dialogs';
 import { downloadJson, pickFile, readAsDataUrl, toFileName } from '@/pdfme-demo/lib/files';
@@ -32,6 +32,7 @@ export function DesignerPage({
   onSave,
   onSaveAs,
   onReset,
+  onPublish,
   onOpenFormViewer,
   notify,
 }: {
@@ -46,6 +47,8 @@ export function DesignerPage({
   onSave: (template: Template) => void;
   onSaveAs: (template: Template) => void;
   onReset: () => void;
+  /** Publishes the draft (saving unsaved changes first). */
+  onPublish: (template: Template) => void;
   onOpenFormViewer: (template: Template) => void;
   notify: (text: string, kind?: ToastKind) => void;
 }) {
@@ -138,8 +141,21 @@ export function DesignerPage({
     }
   }
 
+  const source = doc.source;
   const sourceLabel =
-    doc.source.kind === 'workspace' ? 'My Workspace' : doc.source.kind === 'gallery' ? 'Example template (not saved yet)' : 'New template (not saved yet)';
+    source.kind === 'workspace'
+      ? 'My Workspace'
+      : source.kind === 'gallery'
+        ? 'Example template (not saved yet)'
+        : 'New template (not saved yet)';
+  // Something to publish: a saved draft, or unsaved changes on top of the published version.
+  const canPublish = source.kind === 'workspace' && (source.versionStatus === 'DRAFT' || doc.dirty);
+  const publishTitle =
+    source.kind !== 'workspace'
+      ? 'Save the template first'
+      : canPublish
+        ? 'Make this version the one in use'
+        : 'No changes to publish';
 
   return (
     <div className="space-y-3">
@@ -193,6 +209,9 @@ export function DesignerPage({
           <DemoButton disabled={saving} onClick={onReset}>
             <RotateCcw className="h-3.5 w-3.5" /> Reset
           </DemoButton>
+          <DemoButton disabled={saving || !canPublish} title={publishTitle} onClick={() => onPublish(current())}>
+            <Send className="h-3.5 w-3.5" /> Publish
+          </DemoButton>
         </ToolbarGroup>
         <ToolbarGroup label="Preview">
           <DemoButton onClick={() => onOpenFormViewer(current())}>
@@ -209,9 +228,19 @@ export function DesignerPage({
         </ToolbarGroup>
       </Toolbar>
 
-      <p className="text-xs text-slate-500">
-        <span className="font-semibold text-slate-700">{doc.name}</span> · {sourceLabel}
-        {doc.dirty && <span className="text-rose-600"> · unsaved changes</span>}
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500">
+        <span className="font-semibold text-slate-700">{doc.name}</span>
+        {source.kind === 'workspace' && <VersionBadge status={source.versionStatus} versionNo={source.versionNo} />}
+        <span>· {sourceLabel}</span>
+        {source.kind === 'workspace' && source.versionStatus === 'DRAFT' && (
+          <span>
+            ·{' '}
+            {source.publishedVersionNo !== null
+              ? `version ${source.publishedVersionNo} is still in use until you publish`
+              : 'not published yet'}
+          </span>
+        )}
+        {doc.dirty && <span className="text-rose-600">· unsaved changes</span>}
       </p>
 
       <div

@@ -1,9 +1,11 @@
-// Dialogs used by the pdfme demo: template details, JSON editor, PDF preview and confirm.
+// Dialogs used by Template Studio: template details, publish, JSON editor, PDF preview and confirm.
 
 import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Modal } from '@/components/Modal';
+import { templateApi } from '@/pdfme-demo/api/templateApi';
 import { DemoButton } from '@/pdfme-demo/components/ui';
+import type { DocumentType } from '@/pdfme-demo/types';
 
 const inputCls =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500';
@@ -12,9 +14,16 @@ export interface TemplateDetails {
   name: string;
   description: string;
   tags: string[];
+  /** Code of the document type, for example GENERAL_LETTER. */
+  documentTypeCode: string;
 }
 
-/** Asks for a template's name, description and tags (used by Save, Save As, Rename, New). */
+/** What the details dialog returns: the details plus the chosen document type's id. */
+export interface SubmittedDetails extends TemplateDetails {
+  documentTypeId: string;
+}
+
+/** Asks for a template's name, document type, description and tags (used by Save, Save As, Rename, Import). */
 export function DetailsDialog({
   open,
   title,
@@ -29,24 +38,35 @@ export function DetailsDialog({
   submitLabel: string;
   initial: TemplateDetails;
   busy?: boolean;
-  onSubmit: (details: TemplateDetails) => void;
+  onSubmit: (details: SubmittedDetails) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [tags, setTags] = useState(initial.tags.join(', '));
+  const [typeCode, setTypeCode] = useState(initial.documentTypeCode);
+  const [types, setTypes] = useState<DocumentType[] | null>(null);
+  const [typesError, setTypesError] = useState<string | null>(null);
 
-  // Reset the fields every time the dialog opens.
+  // Reset the fields every time the dialog opens, and load the document types.
   useEffect(() => {
     if (!open) return;
     setName(initial.name);
     setDescription(initial.description);
     setTags(initial.tags.join(', '));
+    setTypeCode(initial.documentTypeCode);
+    setTypesError(null);
+    templateApi
+      .documentTypes()
+      .then(setTypes)
+      .catch((e) => setTypesError(e instanceof Error ? e.message : String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const activeTypes = (types ?? []).filter((t) => t.active || t.code === typeCode);
+  const chosenType = activeTypes.find((t) => t.code === typeCode);
   const trimmed = name.trim();
-  const valid = trimmed.length > 0 && trimmed.length <= 200;
+  const valid = trimmed.length > 0 && trimmed.length <= 200 && !!chosenType;
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
@@ -54,17 +74,36 @@ export function DetailsDialog({
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!valid || busy) return;
+          if (!valid || busy || !chosenType) return;
           onSubmit({
             name: trimmed,
             description: description.trim(),
             tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+            documentTypeCode: chosenType.code,
+            documentTypeId: chosenType.id,
           });
         }}
       >
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-slate-700">Name</span>
           <input autoFocus value={name} maxLength={200} onChange={(e) => setName(e.target.value)} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-slate-700">Document type</span>
+          <select
+            value={chosenType ? typeCode : ''}
+            onChange={(e) => setTypeCode(e.target.value)}
+            disabled={!types}
+            className={inputCls}
+          >
+            {!chosenType && <option value="">{types ? 'Choose a type' : 'Loading...'}</option>}
+            {activeTypes.map((t) => (
+              <option key={t.id} value={t.code}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          {typesError && <span className="mt-1 block text-xs text-rose-600">{typesError}</span>}
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-slate-700">Description</span>
@@ -78,6 +117,72 @@ export function DetailsDialog({
           <DemoButton onClick={onClose}>Cancel</DemoButton>
           <DemoButton type="submit" variant="primary" disabled={!valid || busy}>
             {busy ? 'Saving...' : submitLabel}
+          </DemoButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** Confirms publishing the draft, with an optional note about what changed. */
+export function PublishDialog({
+  open,
+  name,
+  versionNo,
+  replacesVersionNo,
+  willSaveFirst,
+  busy,
+  onPublish,
+  onClose,
+}: {
+  open: boolean;
+  name: string;
+  /** Number of the draft that will be published. */
+  versionNo: number;
+  /** Number of the version in use now, which becomes retired. Null if never published. */
+  replacesVersionNo: number | null;
+  /** True when there are unsaved changes that will be saved before publishing. */
+  willSaveFirst: boolean;
+  busy?: boolean;
+  onPublish: (changeNote: string) => void;
+  onClose: () => void;
+}) {
+  const [note, setNote] = useState('');
+
+  useEffect(() => {
+    if (open) setNote('');
+  }, [open]);
+
+  return (
+    <Modal open={open} onClose={onClose} title="Publish template?" size="sm">
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!busy) onPublish(note.trim());
+        }}
+      >
+        <p className="text-sm text-slate-600">
+          Version {versionNo} of "{name}" will become the version in use.
+          {replacesVersionNo !== null && ` Version ${replacesVersionNo} will be retired but kept in the history.`}
+          {' '}A published version can't be changed. Later edits go into a new draft.
+        </p>
+        {willSaveFirst && <p className="text-sm text-amber-700">Your unsaved changes will be saved first.</p>}
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-slate-700">What changed? (optional)</span>
+          <input
+            autoFocus
+            value={note}
+            maxLength={500}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="For example: new bank details"
+            className={inputCls}
+          />
+        </label>
+        <div className="flex justify-end gap-2 pt-2">
+          <DemoButton onClick={onClose}>Cancel</DemoButton>
+          <DemoButton type="submit" variant="primary" disabled={busy}>
+            {busy ? 'Publishing...' : `Publish version ${versionNo}`}
           </DemoButton>
         </div>
       </form>
